@@ -1,0 +1,51 @@
+# Node
+/node_modules/
+
+# Build output
+/dist/
+/build/
+
+# TypeScript
+*.tsbuildinfo
+
+# ENV
+.env
+.env.*.local
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+/coverage/
+/nyc_output/
+
+# Metro, Expo
+.expo/
+.expo-shared/
+
+# Misc caches
+.cache/
+.parcel-cache/
+
+# Next.js / Nuxt / Gatsby caches (if ever used)
+.next/
+.nuxt/
+.public/
+
+# Optional npm cache
+/.npm
+
