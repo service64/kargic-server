@@ -15,6 +15,16 @@ const mongoValidationErrors = (err: any) => {
 const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) return next(err);
 
+  if (err?.name === 'MulterError') {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE' ? 'File exceeds maximum allowed size' : err.message;
+    return res.status(httpStatus.BAD_REQUEST).json({
+      status: httpStatus.BAD_REQUEST,
+      message,
+      data: null,
+    });
+  }
+
   // Duplicate key
   if (err && (err.code === 11000 || (err.name === 'MongoServerError' && err.code === 11000))) {
     return res.status(httpStatus.CONFLICT).json({
@@ -60,6 +70,7 @@ const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFun
       status: err.statusCode,
       message: err.message,
       data: null,
+      ...(err.code ? { code: err.code } : {}),
     });
   }
 
