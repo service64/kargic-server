@@ -1,0 +1,51 @@
+name: Deploy Kargic Server
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Build (TypeScript)
+        run: npm run build
+
+  deploy:
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # 1. Navigate to the kargic-server folder
+            cd /var/www/kargic-server
+            
+            # 2. Pull latest changes
+            git pull origin main
+            
+            # 3. Install and Rebuild
+            npm install
+            npm run build
+            
+            # 4. Restart the compiled JS file in the dist folder
+            # We use --update-env to pick up any .env changes
+            pm2 restart kargic-server --update-env || pm2 start dist/server.js --name "kargic-server"
+            
+            # 5. Save PM2 list
+            pm2 save
