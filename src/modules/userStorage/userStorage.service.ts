@@ -1,6 +1,6 @@
 import httpStatus from 'http-status';
-import { Types } from 'mongoose'; 
-import { UserStorage } from './userStorage.model'; 
+import { Types } from 'mongoose';
+import { UserStorage } from './userStorage.model';
 import { User } from '../auth/user/user.model';
 import { PackageType } from '../../type/common.type';
 import AppError from '../../errors/AppError';
@@ -19,9 +19,14 @@ const createUserStorageIntoDB = async (payload: CreatePayload) => {
     throw new AppError('User not found', httpStatus.NOT_FOUND);
   }
 
-  const exists = await UserStorage.findOne({ userId: toObjectId(payload.userId) });
+  const exists = await UserStorage.findOne({
+    userId: toObjectId(payload.userId),
+  });
   if (exists) {
-    throw new AppError('User storage already exists for this user', httpStatus.CONFLICT);
+    throw new AppError(
+      'User storage already exists for this user',
+      httpStatus.CONFLICT,
+    );
   }
 
   return UserStorage.create({
@@ -32,23 +37,29 @@ const createUserStorageIntoDB = async (payload: CreatePayload) => {
 };
 
 const getUserStorageByUserIdFromDB = async (userId: string) => {
-  const doc = await UserStorage.findOne({ userId: toObjectId(userId) }).populate(
-    'userId',
-    'email phone role',
-  );
+  const doc = await UserStorage.findOne({
+    userId: toObjectId(userId),
+  }).populate('userId', 'email phone role');
   if (!doc) {
     throw new AppError('User storage not found', httpStatus.NOT_FOUND);
   }
   return doc;
 };
 
-const updateUserStorageByUserIdInDB = async (userId: string, body: Record<string, unknown>) => {
+const updateUserStorageByUserIdInDB = async (
+  userId: string,
+  body: Record<string, unknown>,
+) => {
   const $set: Record<string, unknown> = {};
 
   if (typeof body.package === 'string') {
     $set.package = body.package;
   }
-  if (body.storage && typeof body.storage === 'object' && body.storage !== null) {
+  if (
+    body.storage &&
+    typeof body.storage === 'object' &&
+    body.storage !== null
+  ) {
     const s = body.storage as Record<string, unknown>;
     if (typeof s.used === 'number') {
       $set['storage.used'] = s.used;
@@ -59,7 +70,10 @@ const updateUserStorageByUserIdInDB = async (userId: string, body: Record<string
   }
 
   if (Object.keys($set).length === 0) {
-    throw new AppError('At least one field is required to update', httpStatus.BAD_REQUEST);
+    throw new AppError(
+      'At least one field is required to update',
+      httpStatus.BAD_REQUEST,
+    );
   }
 
   const doc = await UserStorage.findOneAndUpdate(
