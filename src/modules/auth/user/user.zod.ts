@@ -6,6 +6,7 @@ export const createUserZodSchema = z.object({
   body: z.object({
     activeRole: signupActiveRoleEnum.optional(),
     roles: z.array(signupActiveRoleEnum).optional(),
+    name: z.string().min(1),
     age: z.number(),
     phone: z.string(),
     email: z.string().email(),
@@ -87,14 +88,18 @@ export const softDeleteAccountZodSchema = z.object({
 
 const profileUpdateBodySchema = z
   .object({
+    name: z.string().min(1).optional(),
     phone: z.string().min(1).optional(),
     age: z.number().int().positive().optional(),
     activeRole: signupActiveRoleEnum.optional(),
   })
   .refine(
     (data) =>
-      data.phone !== undefined || data.age !== undefined || data.activeRole !== undefined,
-    { message: 'At least one of phone, age, activeRole is required' },
+      data.name !== undefined ||
+      data.phone !== undefined ||
+      data.age !== undefined ||
+      data.activeRole !== undefined,
+    { message: 'At least one of name, phone, age, activeRole is required' },
   );
 
 export const updateProfileZodSchema = z.object({

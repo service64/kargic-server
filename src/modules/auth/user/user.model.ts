@@ -6,6 +6,11 @@ const USER_STATUS = ['ACTIVE', 'BLOCKED', 'DELETED', 'WARNING'] as const;
 
 const userSchema = new Schema<IUser, UserModel>(
   {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     age: {
       type: Number,
       required: true,

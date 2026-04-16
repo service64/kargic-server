@@ -5,15 +5,12 @@ export type { CompanyType, EmployeeCount };
 
 export interface IExporterProfile {
   userId: Types.ObjectId;
-
   companyName: string;
   slug: string;
-
   logoUrl?: Types.ObjectId;
   bannerUrl?: Types.ObjectId[];
-
   yearEstablished: number;
-
+  identificationNumber?: string;
   companyType: CompanyType;
   employeeCount: EmployeeCount;
 

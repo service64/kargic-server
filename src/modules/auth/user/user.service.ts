@@ -17,7 +17,7 @@ import {
 import { generateOTP, sendEmail } from "../../../utils/sendEmail";
 import { signSessionManagementToken } from "../../../utils/sessionManagementToken";
 
-type CreateUserBody = Pick<IUser, "age" | "phone" | "email" | "password"> & {
+type CreateUserBody = Pick<IUser, "name" | "age" | "phone" | "email" | "password"> & {
   activeRole?: ActiveRole;
   roles?: ActiveRole[];
 };
@@ -90,6 +90,7 @@ const bootstrapSuperAdminFromEnv = async (
       const phone = `+1999${Date.now()}${randomUUID().replace(/-/g, "").slice(0, 8)}`;
       try {
         await User.create({
+          name: "Super Admin",
           age: 1,
           phone,
           email: emailNorm,
@@ -192,6 +193,7 @@ const createUserIntoDB = async (payload: CreateUserBody) => {
   const otp = generateOTP();
 
   const user = await User.create({
+    name: payload.name,
     age: payload.age,
     phone: payload.phone,
     email: payload.email,
@@ -523,6 +525,7 @@ const softDeleteAccount = async (userId: string, password: string) => {
 };
 
 type UpdateProfilePayload = {
+  name?: string;
   phone?: string;
   age?: number;
   activeRole?: Extract<ActiveRole, "IMPORTER" | "EXPORTER">;
@@ -547,6 +550,10 @@ const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload
   const user = await User.findById(userId);
   if (!user || user.status !== "ACTIVE") {
     throw new AppError("User not found", httpStatus.NOT_FOUND);
+  }
+
+  if (payload.name !== undefined) {
+    user.name = payload.name.trim();
   }
 
   if (payload.phone !== undefined && payload.phone.trim() !== user.phone) {

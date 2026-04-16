@@ -4,12 +4,17 @@ import { Model } from 'mongoose';
 export type ActiveRole = 'IMPORTER' | 'EXPORTER' | 'ADMIN';
 
 /** All values allowed on `IUser.activeRole` / `roles[]` / JWT. */
-export const USER_ACTIVE_ROLES = ['IMPORTER', 'EXPORTER', 'ADMIN'] as const satisfies readonly ActiveRole[];
+export const USER_ACTIVE_ROLES = [
+  'IMPORTER',
+  'EXPORTER',
+  'ADMIN',
+] as const satisfies readonly ActiveRole[];
 
 export type UserStatus = 'ACTIVE' | 'BLOCKED' | 'DELETED' | 'WARNING';
 
 export interface IUser {
   age: number;
+  name: string;
   otp?: string;
   /** OTP emailed for managing login sessions (device list / revoke). */
   sessionMgmtOtp?: string;

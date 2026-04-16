@@ -4,6 +4,8 @@ import AppError from '../../../errors/AppError';
 import { ExporterProfile } from './exporterProfile.model';
 import { User } from '../user/user.model';
 import type { CompanyType, EmployeeCount } from '../../../type/common.type';
+import { generateSlug } from '../../../utils/generateSlug';
+import { IExporterProfile } from './exporterProfile.interface';
 
 type CreatePayload = {
   userId: string;
@@ -22,39 +24,66 @@ const toObjectId = (id: string) => new Types.ObjectId(id);
 
 const createExporterProfileIntoDB = async (payload: CreatePayload) => {
   const user = await User.findById(payload.userId);
+
   if (!user) {
     throw new AppError('User not found', httpStatus.NOT_FOUND);
   }
 
-  return ExporterProfile.create({
-    userId: toObjectId(payload.userId),
+  const slug = generateSlug(user.name, payload.companyName);
+
+  // optional unique check (extra safety)
+  const existingSlug = await ExporterProfile.findOne({ slug });
+  if (existingSlug) {
+    throw new AppError('Slug already exists', httpStatus.BAD_REQUEST);
+  }
+
+  const exporterData: IExporterProfile = {
+    userId: new Types.ObjectId(payload.userId),
     companyName: payload.companyName,
-    slug: payload.slug,
-    ...(payload.logoUrl !== undefined && { logoUrl: toObjectId(payload.logoUrl) }),
-    ...(payload.bannerUrl !== undefined && {
-      bannerUrl: payload.bannerUrl.map(toObjectId),
-    }),
+    slug,
     yearEstablished: payload.yearEstablished,
     companyType: payload.companyType,
     employeeCount: payload.employeeCount,
     mainProducts: payload.mainProducts,
-    ...(payload.description !== undefined && { description: payload.description }),
-  });
+  };
+
+  // optional fields clean ভাবে add
+  if (payload.logoUrl) {
+    exporterData.logoUrl = new Types.ObjectId(payload.logoUrl);
+  }
+
+  if (payload.bannerUrl?.length) {
+    exporterData.bannerUrl = payload.bannerUrl.map(id => new Types.ObjectId(id));
+  }
+
+  if (payload.description) {
+    exporterData.description = payload.description;
+  }
+
+  return ExporterProfile.create(exporterData);
 };
 
 const getAllExporterProfilesFromDB = async () => {
-  return ExporterProfile.find().populate('userId', 'email phone role').sort({ createdAt: -1 });
+  return ExporterProfile.find()
+    .populate('userId', 'email phone role')
+    .sort({ createdAt: -1 });
 };
 
 const getExporterProfileByIdFromDB = async (id: string) => {
-  const doc = await ExporterProfile.findById(id).populate('userId', 'email phone role');
+  const doc = await ExporterProfile.findById(id).populate(
+    'userId',
+    'email phone role name age',
+  );
   if (!doc) {
     throw new AppError('Exporter profile not found', httpStatus.NOT_FOUND);
   }
   return doc;
 };
 
-const updateExporterProfileInDB = async (id: string, body: Record<string, unknown>) => {
+const updateExporterProfileInDB = async (
+  id: string,
+  body: Record<string, unknown>,
+) => {
   const $set: Record<string, unknown> = {};
   const $unset: Record<string, ''> = {};
 
@@ -101,7 +130,10 @@ const updateExporterProfileInDB = async (id: string, body: Record<string, unknow
   }
 
   if (Object.keys(updateOps).length === 0) {
-    throw new AppError('At least one field is required to update', httpStatus.BAD_REQUEST);
+    throw new AppError(
+      'At least one field is required to update',
+      httpStatus.BAD_REQUEST,
+    );
   }
 
   const doc = await ExporterProfile.findByIdAndUpdate(id, updateOps, {
