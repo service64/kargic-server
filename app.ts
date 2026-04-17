@@ -6,6 +6,8 @@ import { ExporterProfileRoutes } from './src/modules/auth/exporterProfile/export
 import { UserStorageRoutes } from './src/modules/userStorage/userStorage.router';
 import { MediaRoutes } from './src/modules/media/media.router';
 import { AdminRoutes } from './src/modules/auth/admin/admin.router';
+import { CategoryRoutes } from './src/modules/category/category.router';
+import { ProductRoutes } from './src/modules/product/product.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -52,6 +54,8 @@ app.use('/api/v1/admin', AdminRoutes);
 // ------------------------------------------------------------
 app.use('/api/v1/user-storage', UserStorageRoutes);
 app.use('/api/v1/media', MediaRoutes);
+app.use('/api/v1/category', CategoryRoutes);
+app.use('/api/v1/product', ProductRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------

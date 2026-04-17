@@ -9,6 +9,7 @@ const imageSchema = new Schema<IImage>(
     url: { type: String, required: true },
     r2_key: { type: String, required: true, unique: true },
     alt: { type: String, default: '', required: false },
+    insertedBy: { type: String, enum: ['ADMIN', 'USER'], default: 'USER', required: false },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

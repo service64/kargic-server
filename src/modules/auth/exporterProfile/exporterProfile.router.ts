@@ -28,7 +28,7 @@ router.get(
 
 router.patch(
   "/:id",
-  auth(USER_ROLES.EXPORTER),
+  auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   validateRequest(updateExporterProfileZodSchema),
   ExporterProfileController.updateExporterProfile,
 );

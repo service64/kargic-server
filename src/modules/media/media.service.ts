@@ -57,6 +57,7 @@ const saveImageToDb = async (
 
 const uploadImage = async (
   file: Express.Multer.File,
+  size: number,
   alt: string | undefined,
   userId: string,
 ): Promise<IImage> => {
@@ -64,7 +65,7 @@ const uploadImage = async (
     throw new AppError('No file provided', httpStatus.BAD_REQUEST);
   }
 
-  if (file.size > FILE_UPLOAD.MAX_SIZE) {
+  if (size > FILE_UPLOAD.MAX_SIZE) {
     throw new AppError(MEDIA_ERRORS.FILE_TOO_LARGE, httpStatus.BAD_REQUEST);
   }
 
@@ -78,16 +79,17 @@ const uploadImage = async (
   const url = `${bucketUrl}/${r2Key}`;
 
   await uploadToR2(file.buffer, r2Key, file.mimetype);
-  return saveImageToDb(file.originalname, url, r2Key, file.size, alt, userId);
+  return saveImageToDb(file.originalname, url, r2Key, size, alt, userId);
 };
 
-const getAllImages = async (query: Record<string, unknown>) => {
+const getAllImages = async (query: Record<string, unknown>, userId: string) => {
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
   const search = typeof query.search === 'string' ? query.search.trim() : '';
   const skip = (page - 1) * limit;
 
   const filter: Record<string, unknown> = {};
+  filter.userId = new Types.ObjectId(userId);
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -111,23 +113,33 @@ const getAllImages = async (query: Record<string, unknown>) => {
   };
 };
 
-const getImageById = async (imageId: string): Promise<IImage> => {
+const getImageById = async (imageId: string, userId: string): Promise<IImage> => {
   if (!/^[0-9a-fA-F]{24}$/.test(imageId)) {
     throw new AppError(MEDIA_ERRORS.INVALID_IMAGE_ID, httpStatus.BAD_REQUEST);
   }
-  const image = await Image.findById(imageId).lean().exec();
+  const image = await Image.findOne({
+    _id: imageId,
+    userId: new Types.ObjectId(userId),
+  })
+    .lean()
+    .exec();
   if (!image) {
     throw new AppError(MEDIA_ERRORS.IMAGE_NOT_FOUND, httpStatus.NOT_FOUND);
   }
   return image as IImage;
 };
 
-const deleteImage = async (imageId: string): Promise<void> => {
+const deleteImage = async (imageId: string, userId: string): Promise<void> => {
   if (!/^[0-9a-fA-F]{24}$/.test(imageId)) {
     throw new AppError(MEDIA_ERRORS.INVALID_IMAGE_ID, httpStatus.BAD_REQUEST);
   }
 
-  const image = await Image.findById(imageId).lean().exec();
+  const image = await Image.findOne({
+    _id: imageId,
+    userId: new Types.ObjectId(userId),
+  })
+    .lean()
+    .exec();
 
   if (!image) {
     throw new AppError(MEDIA_ERRORS.IMAGE_NOT_FOUND, httpStatus.NOT_FOUND);
@@ -143,12 +155,16 @@ const deleteImage = async (imageId: string): Promise<void> => {
     }),
   );
 
-  await Image.findByIdAndDelete(imageId).exec();
+  await Image.findOneAndDelete({
+    _id: imageId,
+    userId: new Types.ObjectId(userId),
+  }).exec();
 };
 
 const updateImage = async (
   imageId: string,
   file: Express.Multer.File,
+  size: number,
   alt: string | undefined,
   userId: string,
 ): Promise<IImage> => {
@@ -160,7 +176,7 @@ const updateImage = async (
     throw new AppError('No file provided', httpStatus.BAD_REQUEST);
   }
 
-  if (file.size > FILE_UPLOAD.MAX_SIZE) {
+  if (size > FILE_UPLOAD.MAX_SIZE) {
     throw new AppError(MEDIA_ERRORS.FILE_TOO_LARGE, httpStatus.BAD_REQUEST);
   }
 
@@ -175,21 +191,22 @@ const updateImage = async (
 
   await uploadToR2(file.buffer, newR2Key, file.mimetype);
 
-  const oldImage = await Image.findById(imageId).lean().exec();
+  const ownerObjectId = new Types.ObjectId(userId);
+  const oldImage = await Image.findOne({ _id: imageId, userId: ownerObjectId }).lean().exec();
   if (!oldImage) {
     throw new AppError(MEDIA_ERRORS.IMAGE_NOT_FOUND, httpStatus.NOT_FOUND);
   }
   const oldR2Key = oldImage.r2_key;
 
-  const updated = await Image.findByIdAndUpdate(
-    imageId,
+  const updated = await Image.findOneAndUpdate(
+    { _id: imageId, userId: ownerObjectId },
     {
       $set: {
         name: file.originalname,
         url: newUrl,
         r2_key: newR2Key,
-        size: file.size,
-        userId: new Types.ObjectId(userId),
+        size,
+        userId: ownerObjectId,
         ...(alt !== undefined && { alt }),
       },
     },
