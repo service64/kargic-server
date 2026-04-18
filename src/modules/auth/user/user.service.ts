@@ -273,6 +273,53 @@ const loginUser = async (
   return { ...tokens, user: userObj, session };
 };
 
+const switchRole = async (
+  userId: string,
+  email: string,
+  currentRole: ActiveRole,
+  loginSessionId?: string,
+) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found", httpStatus.NOT_FOUND);
+  }
+  if (user.status !== "ACTIVE") {
+    throw new AppError("Account is not active", httpStatus.FORBIDDEN);
+  }
+  if (!user.isVerified) {
+    throw new AppError("Account is not verified", httpStatus.FORBIDDEN);
+  }
+  if (user.email !== email) {
+    throw new AppError("Unauthorized", httpStatus.UNAUTHORIZED);
+  }
+  if (user.activeRole !== currentRole) {
+    throw new AppError("Invalid or outdated token", httpStatus.UNAUTHORIZED);
+  }
+  if (user.activeRole !== "IMPORTER" && user.activeRole !== "EXPORTER") {
+    throw new AppError("Role switch is only available for importer/exporter users", httpStatus.BAD_REQUEST);
+  }
+
+  const nextRole: Extract<ActiveRole, "IMPORTER" | "EXPORTER"> =
+    user.activeRole === "IMPORTER" ? "EXPORTER" : "IMPORTER";
+
+  user.activeRole = nextRole;
+  if (!user.roles.includes(nextRole)) {
+    user.roles = [...user.roles, nextRole];
+  }
+  await user.save();
+
+  const userObj = user.toObject();
+  delete (userObj as { password?: string }).password;
+  delete (userObj as { otp?: string }).otp;
+
+  const tokens = afterSuccessLogin(user, loginSessionId, nextRole);
+  return {
+    ...tokens,
+    user: userObj,
+    ...(loginSessionId ? { session: { sessionId: loginSessionId } } : {}),
+  };
+};
+
 const invalidSuperAdminCreds = () =>
   new AppError("Invalid super admin credentials", httpStatus.UNAUTHORIZED);
 
@@ -587,6 +634,7 @@ export const UserService = {
   createUserIntoDB,
   verifyOtp,
   loginUser,
+  switchRole,
   loginSuperAdmin,
   logoutUser,
   requestSessionManagementOtp,
