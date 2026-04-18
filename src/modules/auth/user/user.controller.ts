@@ -45,6 +45,16 @@ const login = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Logged in successfully', result);
 });
 
+const switchRole = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.switchRole(
+    req.user!.userId,
+    req.user!.email,
+    req.user!.activeRole,
+    req.user!.loginSessionId,
+  );
+  return sendResponse(res, httpStatus.OK, 'Role switched successfully', result);
+});
+
 const superAdminLogin = catchAsync(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   const result = await UserService.loginSuperAdmin(email, password);
@@ -178,6 +188,7 @@ export const UserController = {
   createUser,
   verifyOtp,
   login,
+  switchRole,
   superAdminLogin,
   logout,
   requestSessionManagementOtp,

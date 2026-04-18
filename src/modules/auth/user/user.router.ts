@@ -35,6 +35,8 @@ router.post(
   UserController.login,
 );
 
+router.post('/role-switch', auth(), UserController.switchRole);
+
 router.patch(
   '/profile',
   auth(),
