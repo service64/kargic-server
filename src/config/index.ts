@@ -6,6 +6,7 @@ const defaultCorsOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
+  'https://kargic.com',
 ];
 
 const corsOriginsFromEnv = process.env.CORS_ORIGINS
@@ -37,7 +38,8 @@ export default {
   super_admin_password: process.env.SUPER_ADMIN_PASSWORD || '',
 
   /** HttpOnly cookie name for refresh token (super-admin login). */
-  refresh_token_cookie_name: process.env.REFRESH_TOKEN_COOKIE_NAME || 'refreshToken',
+  refresh_token_cookie_name:
+    process.env.REFRESH_TOKEN_COOKIE_NAME || 'refreshToken',
   /** Cookie path; use `/api/v1` if you only want it sent to API routes. */
   refresh_token_cookie_path: process.env.REFRESH_TOKEN_COOKIE_PATH || '/',
   /** e.g. `.yourdomain.com` for subdomains; omit in dev. */
@@ -50,5 +52,6 @@ export default {
   cookie_force_insecure: process.env.COOKIE_INSECURE === 'true',
 
   /** Allowed browser origins for credentialed CORS (`credentials: 'include'`). */
-  cors_origins: corsOriginsFromEnv.length > 0 ? corsOriginsFromEnv : defaultCorsOrigins,
+  cors_origins:
+    corsOriginsFromEnv.length > 0 ? corsOriginsFromEnv : defaultCorsOrigins,
 };
