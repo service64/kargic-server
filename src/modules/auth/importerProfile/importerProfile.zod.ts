@@ -5,8 +5,7 @@ const objectIdString = z
   .regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
 export const createImporterProfileZodSchema = z.object({
-  body: z.object({
-    userId: objectIdString,
+  body: z.object({ 
     companyName: z.string().min(1),
     importLicense: z.string().min(1),
     businessType: z.string().min(1),
