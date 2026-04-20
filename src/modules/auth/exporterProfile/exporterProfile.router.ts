@@ -21,8 +21,8 @@ router.post(
 router.get("/", ExporterProfileController.getAllExporterProfiles);
 
 router.get(
-  "/:id",
-  validateRequest(exporterProfileIdParamZodSchema),
+  "/profile",
+  auth(USER_ROLES.EXPORTER,USER_ROLES.ADMIN),
   ExporterProfileController.getExporterProfileById,
 );
 

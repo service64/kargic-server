@@ -5,7 +5,11 @@ import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 
 const createExporterProfile = catchAsync(async (req: Request, res: Response) => {
-  const result = await ExporterProfileService.createExporterProfileIntoDB(req.body);
+  const userId = req.user?.userId;
+  const result = await ExporterProfileService.createExporterProfileIntoDB({
+    ...req.body,
+    userId: userId as string,
+  });
   return sendResponse(res, httpStatus.CREATED, 'Exporter profile created successfully', result);
 });
 
@@ -20,8 +24,8 @@ const getAllExporterProfiles = catchAsync(async (_req: Request, res: Response) =
 });
 
 const getExporterProfileById = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params as { id: string };
-  const result = await ExporterProfileService.getExporterProfileByIdFromDB(id);
+  const userId = req.user?.userId;
+  const result = await ExporterProfileService.getExporterProfileByIdFromDB(userId as string);
   return sendResponse(
     res,
     httpStatus.OK,

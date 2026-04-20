@@ -17,12 +17,8 @@ const slugSchema = z
 const mainProductsSchema = z.array(z.string().min(1));
 
 export const createExporterProfileZodSchema = z.object({
-  body: z.object({
-    userId: objectIdString,
-    companyName: z.string().min(1),
-    slug: slugSchema,
-    logoUrl: objectIdString.optional(),
-    bannerUrl: z.array(objectIdString).optional(),
+  body: z.object({ 
+    companyName: z.string().min(1),   
     yearEstablished: z
       .number()
       .int()
