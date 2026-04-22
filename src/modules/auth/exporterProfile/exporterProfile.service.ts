@@ -13,7 +13,7 @@ type CreatePayload = {
   slug: string;
   logoUrl?: string;
   bannerUrl?: string[];
-  yearEstablished: number;
+  yearEstablished: string;
   companyType: CompanyType;
   employeeCount: EmployeeCount;
   mainProducts: string[];

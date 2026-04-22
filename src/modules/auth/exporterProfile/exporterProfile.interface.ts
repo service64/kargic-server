@@ -9,7 +9,7 @@ export interface IExporterProfile {
   slug: string;
   logoUrl?: Types.ObjectId;
   bannerUrl?: Types.ObjectId[];
-  yearEstablished: number;
+  yearEstablished: string;
   identificationNumber?: string;
   companyType: CompanyType;
   employeeCount: EmployeeCount;

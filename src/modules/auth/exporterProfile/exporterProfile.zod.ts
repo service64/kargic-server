@@ -1,29 +1,30 @@
-import { z } from 'zod';
-import { COMPANY_TYPES, EMPLOYEE_COUNTS } from '../../../type/common.type';
+import { z } from "zod";
+import { COMPANY_TYPES, EMPLOYEE_COUNTS } from "../../../type/common.type";
 
-const objectIdString = z
-  .string()
-  .regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
+const objectIdString = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid id");
 
-const companyTypeEnum = z.enum(COMPANY_TYPES as unknown as [string, ...string[]]);
+const companyTypeEnum = z.enum(
+  COMPANY_TYPES as unknown as [string, ...string[]],
+);
 
-const employeeCountEnum = z.enum(EMPLOYEE_COUNTS as unknown as [string, ...string[]]);
+const employeeCountEnum = z.enum(
+  EMPLOYEE_COUNTS as unknown as [string, ...string[]],
+);
 
 const slugSchema = z
   .string()
   .min(1)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with single hyphens');
+  .regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Slug must be lowercase alphanumeric with single hyphens",
+  );
 
 const mainProductsSchema = z.array(z.string().min(1));
 
 export const createExporterProfileZodSchema = z.object({
-  body: z.object({ 
-    companyName: z.string().min(1),   
-    yearEstablished: z
-      .number()
-      .int()
-      .min(1800)
-      .max(new Date().getFullYear() + 1),
+  body: z.object({
+    companyName: z.string().min(1),
+    yearEstablished: z.string().min(4),
     companyType: companyTypeEnum,
     employeeCount: employeeCountEnum,
     mainProducts: mainProductsSchema,
@@ -61,7 +62,7 @@ export const updateExporterProfileZodSchema = z.object({
       description: z.string().optional().nullable(),
     })
     .refine((data) => Object.keys(data).length > 0, {
-      message: 'At least one field is required to update',
+      message: "At least one field is required to update",
     }),
   query: z.any().optional(),
 });

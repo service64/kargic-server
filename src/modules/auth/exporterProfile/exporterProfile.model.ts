@@ -27,7 +27,7 @@ const exporterProfileSchema = new Schema<IExporterProfile>(
       type: [Schema.Types.ObjectId],
     },
     yearEstablished: {
-      type: Number,
+      type: String,
       required: true,
     },
     companyType: {
