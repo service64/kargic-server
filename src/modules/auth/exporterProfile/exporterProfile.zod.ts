@@ -50,12 +50,7 @@ export const updateExporterProfileZodSchema = z.object({
       slug: slugSchema.optional(),
       logoUrl: objectIdString.optional().nullable(),
       bannerUrl: z.array(objectIdString).optional().nullable(),
-      yearEstablished: z
-        .number()
-        .int()
-        .min(1800)
-        .max(new Date().getFullYear() + 1)
-        .optional(),
+      yearEstablished: z.string().min(4).optional(),
       companyType: companyTypeEnum.optional(),
       employeeCount: employeeCountEnum.optional(),
       mainProducts: mainProductsSchema.optional(),

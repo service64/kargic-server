@@ -74,7 +74,7 @@ const getExporterProfileByIdFromDB = async (userId: string) => {
     'userId',
     'email phone role name age',
   );
-  console.log("doc",doc);
+  // console.log("doc",doc);
   if (!doc) {
     throw new AppError('Exporter profile not found', httpStatus.NOT_FOUND);
   }
@@ -85,6 +85,7 @@ const updateExporterProfileInDB = async (
   id: string,
   body: Record<string, unknown>,
 ) => {
+  // console.log("body",body);
   const $set: Record<string, unknown> = {};
   const $unset: Record<string, ''> = {};
 
@@ -104,7 +105,7 @@ const updateExporterProfileInDB = async (
   } else if (Array.isArray(body.bannerUrl)) {
     $set.bannerUrl = (body.bannerUrl as string[]).map(toObjectId);
   }
-  if (typeof body.yearEstablished === 'number') {
+  if (typeof body.yearEstablished === 'string' && body.yearEstablished.length >= 4) {
     $set.yearEstablished = body.yearEstablished;
   }
   if (typeof body.companyType === 'string') {
