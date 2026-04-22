@@ -12,8 +12,9 @@ const userSchema = new Schema<IUser, UserModel>(
       trim: true,
     },
     age: {
-      type: Number,
+      type: String,
       required: true,
+      trim: true,
     },
     otp: {
       type: String,

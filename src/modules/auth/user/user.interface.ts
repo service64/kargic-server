@@ -13,7 +13,8 @@ export const USER_ACTIVE_ROLES = [
 export type UserStatus = 'ACTIVE' | 'BLOCKED' | 'DELETED' | 'WARNING';
 
 export interface IUser {
-  age: number;
+  /** Date of birth (YYYY-MM-DD). Persisted under `age` for backwards compatibility. */
+  age: string;
   name: string;
   otp?: string;
   /** OTP emailed for managing login sessions (device list / revoke). */

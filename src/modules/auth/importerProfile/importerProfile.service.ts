@@ -38,7 +38,7 @@ const getImporterProfileByIdFromDB = async (userId: string) => {
     'userId',
     'email phone role name age',
   );
-  console.log("doc",doc);
+  // console.log("doc",doc);
   if (!doc) {
     throw new AppError('Importer profile not found', httpStatus.NOT_FOUND);
   }

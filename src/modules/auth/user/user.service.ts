@@ -91,7 +91,7 @@ const bootstrapSuperAdminFromEnv = async (
       try {
         await User.create({
           name: "Super Admin",
-          age: 1,
+          age: "1990-01-01",
           phone,
           email: emailNorm,
           password: plainPassword,
@@ -574,7 +574,8 @@ const softDeleteAccount = async (userId: string, password: string) => {
 type UpdateProfilePayload = {
   name?: string;
   phone?: string;
-  age?: number;
+  /** YYYY-MM-DD date of birth (User document field `age`). */
+  age?: string;
   activeRole?: Extract<ActiveRole, "IMPORTER" | "EXPORTER">;
 };
 
@@ -615,7 +616,7 @@ const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload
   }
 
   if (payload.age !== undefined) {
-    user.age = payload.age;
+    user.age = payload.age.trim();
   }
 
   if (payload.activeRole !== undefined) {
