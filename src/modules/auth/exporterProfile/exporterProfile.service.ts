@@ -70,11 +70,9 @@ const getAllExporterProfilesFromDB = async () => {
 };
 
 const getExporterProfileByIdFromDB = async (userId: string) => {
-  const doc = await ExporterProfile.findOne({ userId: new Types.ObjectId(userId) }).populate(
-    'userId',
-    'email phone role name age',
-  );
-  // console.log("doc",doc);
+  const doc = await ExporterProfile.findOne({ userId: new Types.ObjectId(userId) })
+    .populate('userId', 'email phone role name age')
+    .populate('logoUrl', 'url alt');
   if (!doc) {
     throw new AppError('Exporter profile not found', httpStatus.NOT_FOUND);
   }
