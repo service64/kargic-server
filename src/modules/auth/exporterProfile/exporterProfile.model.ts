@@ -21,6 +21,7 @@ const exporterProfileSchema = new Schema<IExporterProfile>(
     },
     logoUrl: {
       type: Schema.Types.ObjectId,
+      ref: 'Image',
       required: false,
     },
     bannerUrl: {
