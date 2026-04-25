@@ -24,8 +24,18 @@ const exporterProfileSchema = new Schema<IExporterProfile>(
       ref: 'Image',
       required: false,
     },
-    bannerUrl: {
-      type: [Schema.Types.ObjectId],
+    /** Up to 3 fixed slots (left → right). Independent refs; no holes in the DB. */
+    banner0: {
+      type: Schema.Types.ObjectId,
+      ref: 'Image',
+    },
+    banner1: {
+      type: Schema.Types.ObjectId,
+      ref: 'Image',
+    },
+    banner2: {
+      type: Schema.Types.ObjectId,
+      ref: 'Image',
     },
     yearEstablished: {
       type: String,

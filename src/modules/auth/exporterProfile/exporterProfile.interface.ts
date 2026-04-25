@@ -8,7 +8,10 @@ export interface IExporterProfile {
   companyName: string;
   slug: string;
   logoUrl?: Types.ObjectId;
-  bannerUrl?: Types.ObjectId[];
+  /** Fixed banner slots; legacy `bannerUrl` array in DB is read in the service. */
+  banner0?: Types.ObjectId;
+  banner1?: Types.ObjectId;
+  banner2?: Types.ObjectId;
   yearEstablished: string;
   identificationNumber?: string;
   companyType: CompanyType;
