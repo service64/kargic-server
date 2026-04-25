@@ -53,7 +53,10 @@ const createExporterProfileIntoDB = async (payload: CreatePayload) => {
   }
 
   if (payload.bannerUrl?.length) {
-    exporterData.bannerUrl = payload.bannerUrl.map(id => new Types.ObjectId(id));
+    const b = payload.bannerUrl;
+    if (b[0]) exporterData.banner0 = toObjectId(b[0]);
+    if (b[1]) exporterData.banner1 = toObjectId(b[1]);
+    if (b[2]) exporterData.banner2 = toObjectId(b[2]);
   }
 
   if (payload.description) {
@@ -72,11 +75,29 @@ const getAllExporterProfilesFromDB = async () => {
 const getExporterProfileByIdFromDB = async (userId: string) => {
   const doc = await ExporterProfile.findOne({ userId: new Types.ObjectId(userId) })
     .populate('userId', 'email phone role name age')
-    .populate('logoUrl', 'url alt');
+    .populate('logoUrl', 'url alt')
+    .populate('banner0', 'url alt _id')
+    .populate('banner1', 'url alt _id')
+    .populate('banner2', 'url alt _id');
   if (!doc) {
     throw new AppError('Exporter profile not found', httpStatus.NOT_FOUND);
   }
-  return doc;
+  const o = doc.toObject() as unknown as Record<string, unknown> & {
+    banner0?: unknown;
+    banner1?: unknown;
+    banner2?: unknown;
+    bannerUrl?: unknown;
+  };
+  const legacy = o.bannerUrl;
+  const legacyArr = Array.isArray(legacy) ? legacy : null;
+  const s0 = o.banner0 ?? legacyArr?.[0];
+  const s1 = o.banner1 ?? legacyArr?.[1];
+  const s2 = o.banner2 ?? legacyArr?.[2];
+  const { banner0, banner1, banner2, bannerUrl: _legacyField, ...rest } = o;
+  return {
+    ...rest,
+    bannerUrl: [s0 ?? null, s1 ?? null, s2 ?? null],
+  };
 };
 
 const updateExporterProfileInDB = async (
@@ -99,9 +120,28 @@ const updateExporterProfileInDB = async (
     $set.logoUrl = toObjectId(body.logoUrl);
   }
   if (body.bannerUrl === null) {
+    $unset.banner0 = '';
+    $unset.banner1 = '';
+    $unset.banner2 = '';
     $unset.bannerUrl = '';
-  } else if (Array.isArray(body.bannerUrl)) {
-    $set.bannerUrl = (body.bannerUrl as string[]).map(toObjectId);
+  } else if (Array.isArray(body.bannerUrl) && (body.bannerUrl as unknown[]).length === 3) {
+    const [a, b, c] = body.bannerUrl as (string | null)[];
+    if (a === null) {
+      $unset.banner0 = '';
+    } else if (typeof a === 'string') {
+      $set.banner0 = toObjectId(a);
+    }
+    if (b === null) {
+      $unset.banner1 = '';
+    } else if (typeof b === 'string') {
+      $set.banner1 = toObjectId(b);
+    }
+    if (c === null) {
+      $unset.banner2 = '';
+    } else if (typeof c === 'string') {
+      $set.banner2 = toObjectId(c);
+    }
+    $unset.bannerUrl = '';
   }
   if (typeof body.yearEstablished === 'string' && body.yearEstablished.length >= 4) {
     $set.yearEstablished = body.yearEstablished;

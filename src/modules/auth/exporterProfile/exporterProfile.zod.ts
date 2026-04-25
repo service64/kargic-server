@@ -49,7 +49,14 @@ export const updateExporterProfileZodSchema = z.object({
       companyName: z.string().min(1).optional(),
       slug: slugSchema.optional(),
       logoUrl: objectIdString.optional().nullable(),
-      bannerUrl: z.array(objectIdString).optional().nullable(),
+      bannerUrl: z
+        .tuple([
+          z.union([objectIdString, z.null()]),
+          z.union([objectIdString, z.null()]),
+          z.union([objectIdString, z.null()]),
+        ])
+        .optional()
+        .nullable(),
       yearEstablished: z.string().min(4).optional(),
       companyType: companyTypeEnum.optional(),
       employeeCount: employeeCountEnum.optional(),
