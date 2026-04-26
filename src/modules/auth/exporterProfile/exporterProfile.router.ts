@@ -1,36 +1,41 @@
-import express from 'express';
-import { ExporterProfileController } from './exporterProfile.controller';
+import express from "express";
+import { ExporterProfileController } from "./exporterProfile.controller";
 import {
   createExporterProfileZodSchema,
   exporterProfileIdParamZodSchema,
   updateExporterProfileZodSchema,
-} from './exporterProfile.zod';
-import validateRequest from '../../../middlewares/validateRequest';
+} from "./exporterProfile.zod";
+import validateRequest from "../../../middlewares/validateRequest";
+import { auth } from "../../../middlewares/auth.middleware";
+import { USER_ROLES } from "../../../constants";
 
 const router = express.Router();
 
 router.post(
-  '/create',
+  "/create",
+  auth(USER_ROLES.EXPORTER),
   validateRequest(createExporterProfileZodSchema),
   ExporterProfileController.createExporterProfile,
 );
 
-router.get('/', ExporterProfileController.getAllExporterProfiles);
+router.get("/", ExporterProfileController.getAllExporterProfiles);
 
 router.get(
-  '/:id',
-  validateRequest(exporterProfileIdParamZodSchema),
+  "/profile",
+  auth(USER_ROLES.EXPORTER,USER_ROLES.ADMIN),
   ExporterProfileController.getExporterProfileById,
 );
 
 router.patch(
-  '/:id',
+  "/:id",
+  auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   validateRequest(updateExporterProfileZodSchema),
   ExporterProfileController.updateExporterProfile,
 );
 
 router.delete(
-  '/:id',
+  "/:id",
+  auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   validateRequest(exporterProfileIdParamZodSchema),
   ExporterProfileController.deleteExporterProfile,
 );

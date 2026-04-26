@@ -26,9 +26,8 @@ router.get(
 );
 
 router.get(
-  "/:id",
+  "/profile",
   auth(USER_ROLES.IMPORTER,USER_ROLES.ADMIN),
-  validateRequest(importerProfileIdParamZodSchema),
   ImporterProfileController.getImporterProfileById,
 );
 

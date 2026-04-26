@@ -7,11 +7,8 @@ import { uploadImageSchema } from './media.validation';
 
 const router = Router();
 
-/** Importers & exporters use media; `ADMIN` can too (matches `user` `activeRole`). */
-const mediaAccess = auth('IMPORTER', 'EXPORTER', 'ADMIN');
-
-/** Only platform admin may replace or delete library assets. */
-const mediaAdminOnly = auth('ADMIN');
+/** Logged-in users only; ownership checks happen in service layer. */
+const mediaAccess = auth();
 
 router.post(
   '/',
@@ -27,12 +24,12 @@ router.get('/:id', mediaAccess, mediaController.getImageById);
 
 router.patch(
   '/:id',
-  mediaAdminOnly,
+  mediaAccess,
   uploadMiddleware,
   validateRequest(uploadImageSchema),
   mediaController.update,
 );
 
-router.delete('/:id', mediaAdminOnly, mediaController.remove);
+router.delete('/:id', mediaAccess, mediaController.remove);
 
 export const MediaRoutes = router;

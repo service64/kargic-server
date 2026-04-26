@@ -17,7 +17,7 @@ import {
 import { generateOTP, sendEmail } from "../../../utils/sendEmail";
 import { signSessionManagementToken } from "../../../utils/sessionManagementToken";
 
-type CreateUserBody = Pick<IUser, "age" | "phone" | "email" | "password"> & {
+type CreateUserBody = Pick<IUser, "name" | "age" | "phone" | "email" | "password"> & {
   activeRole?: ActiveRole;
   roles?: ActiveRole[];
 };
@@ -90,7 +90,8 @@ const bootstrapSuperAdminFromEnv = async (
       const phone = `+1999${Date.now()}${randomUUID().replace(/-/g, "").slice(0, 8)}`;
       try {
         await User.create({
-          age: 1,
+          name: "Super Admin",
+          age: "1990-01-01",
           phone,
           email: emailNorm,
           password: plainPassword,
@@ -192,6 +193,7 @@ const createUserIntoDB = async (payload: CreateUserBody) => {
   const otp = generateOTP();
 
   const user = await User.create({
+    name: payload.name,
     age: payload.age,
     phone: payload.phone,
     email: payload.email,
@@ -269,6 +271,53 @@ const loginUser = async (
 
   const tokens = afterSuccessLogin(user, session.sessionId);
   return { ...tokens, user: userObj, session };
+};
+
+const switchRole = async (
+  userId: string,
+  email: string,
+  currentRole: ActiveRole,
+  loginSessionId?: string,
+) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found", httpStatus.NOT_FOUND);
+  }
+  if (user.status !== "ACTIVE") {
+    throw new AppError("Account is not active", httpStatus.FORBIDDEN);
+  }
+  if (!user.isVerified) {
+    throw new AppError("Account is not verified", httpStatus.FORBIDDEN);
+  }
+  if (user.email !== email) {
+    throw new AppError("Unauthorized", httpStatus.UNAUTHORIZED);
+  }
+  if (user.activeRole !== currentRole) {
+    throw new AppError("Invalid or outdated token", httpStatus.UNAUTHORIZED);
+  }
+  if (user.activeRole !== "IMPORTER" && user.activeRole !== "EXPORTER") {
+    throw new AppError("Role switch is only available for importer/exporter users", httpStatus.BAD_REQUEST);
+  }
+
+  const nextRole: Extract<ActiveRole, "IMPORTER" | "EXPORTER"> =
+    user.activeRole === "IMPORTER" ? "EXPORTER" : "IMPORTER";
+
+  user.activeRole = nextRole;
+  if (!user.roles.includes(nextRole)) {
+    user.roles = [...user.roles, nextRole];
+  }
+  await user.save();
+
+  const userObj = user.toObject();
+  delete (userObj as { password?: string }).password;
+  delete (userObj as { otp?: string }).otp;
+
+  const tokens = afterSuccessLogin(user, loginSessionId, nextRole);
+  return {
+    ...tokens,
+    user: userObj,
+    ...(loginSessionId ? { session: { sessionId: loginSessionId } } : {}),
+  };
 };
 
 const invalidSuperAdminCreds = () =>
@@ -523,8 +572,10 @@ const softDeleteAccount = async (userId: string, password: string) => {
 };
 
 type UpdateProfilePayload = {
+  name?: string;
   phone?: string;
-  age?: number;
+  /** YYYY-MM-DD date of birth (User document field `age`). */
+  age?: string;
   activeRole?: Extract<ActiveRole, "IMPORTER" | "EXPORTER">;
 };
 
@@ -549,6 +600,10 @@ const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload
     throw new AppError("User not found", httpStatus.NOT_FOUND);
   }
 
+  if (payload.name !== undefined) {
+    user.name = payload.name.trim();
+  }
+
   if (payload.phone !== undefined && payload.phone.trim() !== user.phone) {
     const taken = await User.findOne({
       phone: payload.phone.trim(),
@@ -561,7 +616,7 @@ const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload
   }
 
   if (payload.age !== undefined) {
-    user.age = payload.age;
+    user.age = payload.age.trim();
   }
 
   if (payload.activeRole !== undefined) {
@@ -580,6 +635,7 @@ export const UserService = {
   createUserIntoDB,
   verifyOtp,
   loginUser,
+  switchRole,
   loginSuperAdmin,
   logoutUser,
   requestSessionManagementOtp,

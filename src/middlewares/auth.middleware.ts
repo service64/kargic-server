@@ -50,7 +50,7 @@ export const auth =
       }
 
       const activeRole = decoded.activeRole;
-      console.log(activeRole);
+ 
 
       if (allowedActiveRoles.length > 0 && !allowedActiveRoles.includes(activeRole)) {
         throw new AppError('Forbidden', httpStatus.FORBIDDEN);
@@ -67,8 +67,7 @@ export const auth =
         if (!sessionOk) {
           throw new AppError('Session ended. Please log in again.', httpStatus.UNAUTHORIZED);
         }
-      }
-
+      } 
       req.user = {
         userId: decoded.userId,
         email: decoded.email,

@@ -45,6 +45,16 @@ const login = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Logged in successfully', result);
 });
 
+const switchRole = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.switchRole(
+    req.user!.userId,
+    req.user!.email,
+    req.user!.activeRole,
+    req.user!.loginSessionId,
+  );
+  return sendResponse(res, httpStatus.OK, 'Role switched successfully', result);
+});
+
 const superAdminLogin = catchAsync(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   const result = await UserService.loginSuperAdmin(email, password);
@@ -149,8 +159,9 @@ const softDeleteAccount = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
-  const { phone, age, activeRole } = req.body;
+  const { name, phone, age, activeRole } = req.body;
   const result = await UserService.updateProfileIntoDB(req.user!.userId, {
+    name,
     phone,
     age,
     activeRole,
@@ -177,6 +188,7 @@ export const UserController = {
   createUser,
   verifyOtp,
   login,
+  switchRole,
   superAdminLogin,
   logout,
   requestSessionManagementOtp,

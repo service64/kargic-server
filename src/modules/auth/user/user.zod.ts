@@ -1,12 +1,22 @@
 import { z } from 'zod';
 
-const signupActiveRoleEnum = z.enum(['IMPORTER', 'EXPORTER']); 
+const signupActiveRoleEnum = z.enum(['IMPORTER', 'EXPORTER']);
+
+/** YYYY-MM-DD; stored on User as `age` (legacy name). */
+const dateOfBirthSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be YYYY-MM-DD')
+  .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00.000Z`)), {
+    message: 'Invalid date of birth',
+  });
 
 export const createUserZodSchema = z.object({
   body: z.object({
     activeRole: signupActiveRoleEnum.optional(),
     roles: z.array(signupActiveRoleEnum).optional(),
-    age: z.number(),
+    name: z.string().min(1),
+    age: dateOfBirthSchema,
     phone: z.string(),
     email: z.string().email(),
     password: z.string().min(6),
@@ -87,14 +97,21 @@ export const softDeleteAccountZodSchema = z.object({
 
 const profileUpdateBodySchema = z
   .object({
+    name: z.string().min(1).optional(),
     phone: z.string().min(1).optional(),
-    age: z.number().int().positive().optional(),
+    age: dateOfBirthSchema.optional(),
     activeRole: signupActiveRoleEnum.optional(),
   })
   .refine(
     (data) =>
-      data.phone !== undefined || data.age !== undefined || data.activeRole !== undefined,
-    { message: 'At least one of phone, age, activeRole is required' },
+      data.name !== undefined ||
+      data.phone !== undefined ||
+      data.age !== undefined ||
+      data.activeRole !== undefined,
+    {
+      message:
+        'At least one of name, phone, age (date of birth YYYY-MM-DD), activeRole is required',
+    },
   );
 
 export const updateProfileZodSchema = z.object({
