@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import mediaService from './media.service';
+import { IUseCase } from './image.interface';
 
 const upload = catchAsync(async (req: Request, res: Response) => {
   const file = req.file;
@@ -18,9 +19,10 @@ const upload = catchAsync(async (req: Request, res: Response) => {
     throw new AppError('Image size mismatch', httpStatus.BAD_REQUEST);
   }
   const alt = typeof req.body?.alt === 'string' ? req.body.alt : undefined;
+  const useCase = req.body.useCase as IUseCase;
   const userId = req.user!.userId;
 
-  const image = await mediaService.uploadImage(file, requestedSize, alt, userId);
+  const image = await mediaService.uploadImage(file, requestedSize, alt, useCase, userId);
   sendResponse(res, httpStatus.CREATED, 'Image uploaded successfully', image);
 });
 
@@ -52,9 +54,10 @@ const update = catchAsync(async (req: Request, res: Response) => {
     throw new AppError('Image size mismatch', httpStatus.BAD_REQUEST);
   }
   const alt = typeof req.body?.alt === 'string' ? req.body.alt : undefined;
+  const useCase = req.body.useCase as IUseCase;
   const userId = req.user!.userId;
 
-  const image = await mediaService.updateImage(id, file, requestedSize, alt, userId);
+  const image = await mediaService.updateImage(id, file, requestedSize, alt, useCase, userId);
   sendResponse(res, httpStatus.OK, 'Image updated successfully', image);
 });
 
