@@ -10,7 +10,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from './r2.client';
-import { IImage } from './image.interface';
+import { IImage, IUseCase } from './image.interface';
 
 const generateR2Key = (originalName: string): string => {
   const ext = originalName.split('.').pop() || 'bin';
@@ -42,6 +42,7 @@ const saveImageToDb = async (
   r2Key: string,
   size: number,
   alt: string | undefined,
+  useCase: IUseCase,
   userId?: string,
 ): Promise<IImage> => {
   const doc = await Image.create({
@@ -50,6 +51,7 @@ const saveImageToDb = async (
     r2_key: r2Key,
     size,
     alt: alt ?? '',
+    useCase,
     ...(userId && { userId: new Types.ObjectId(userId) }),
   });
   return doc.toObject();
@@ -59,6 +61,7 @@ const uploadImage = async (
   file: Express.Multer.File,
   size: number,
   alt: string | undefined,
+  useCase: IUseCase,
   userId: string,
 ): Promise<IImage> => {
   if (!file?.buffer) {
@@ -79,7 +82,7 @@ const uploadImage = async (
   const url = `${bucketUrl}/${r2Key}`;
 
   await uploadToR2(file.buffer, r2Key, file.mimetype);
-  return saveImageToDb(file.originalname, url, r2Key, size, alt, userId);
+  return saveImageToDb(file.originalname, url, r2Key, size, alt, useCase, userId);
 };
 
 const getAllImages = async (query: Record<string, unknown>, userId: string) => {
@@ -166,6 +169,7 @@ const updateImage = async (
   file: Express.Multer.File,
   size: number,
   alt: string | undefined,
+  useCase: IUseCase,
   userId: string,
 ): Promise<IImage> => {
   if (!/^[0-9a-fA-F]{24}$/.test(imageId)) {
@@ -208,6 +212,7 @@ const updateImage = async (
         size,
         userId: ownerObjectId,
         ...(alt !== undefined && { alt }),
+        ...(useCase !== undefined && { useCase }),
       },
     },
     { new: true },
