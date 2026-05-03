@@ -73,7 +73,9 @@ const getAllExporterProfilesFromDB = async () => {
 };
 
 const getExporterProfileByIdFromDB = async (userId: string) => {
-  const doc = await ExporterProfile.findOne({ userId: new Types.ObjectId(userId) })
+  const doc = await ExporterProfile.findOne({
+    userId: new Types.ObjectId(userId),
+  })
     .populate('userId', 'email phone role name age')
     .populate('logoUrl', 'url alt')
     .populate('banner0', 'url alt _id')
@@ -124,7 +126,10 @@ const updateExporterProfileInDB = async (
     $unset.banner1 = '';
     $unset.banner2 = '';
     $unset.bannerUrl = '';
-  } else if (Array.isArray(body.bannerUrl) && (body.bannerUrl as unknown[]).length === 3) {
+  } else if (
+    Array.isArray(body.bannerUrl) &&
+    (body.bannerUrl as unknown[]).length === 3
+  ) {
     const [a, b, c] = body.bannerUrl as (string | null)[];
     if (a === null) {
       $unset.banner0 = '';
@@ -143,7 +148,10 @@ const updateExporterProfileInDB = async (
     }
     $unset.bannerUrl = '';
   }
-  if (typeof body.yearEstablished === 'string' && body.yearEstablished.length >= 4) {
+  if (
+    typeof body.yearEstablished === 'string' &&
+    body.yearEstablished.length >= 4
+  ) {
     $set.yearEstablished = body.yearEstablished;
   }
   if (typeof body.companyType === 'string') {
@@ -177,7 +185,7 @@ const updateExporterProfileInDB = async (
   }
 
   const doc = await ExporterProfile.findByIdAndUpdate(id, updateOps, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   });
   if (!doc) {

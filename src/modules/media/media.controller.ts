@@ -11,18 +11,11 @@ const upload = catchAsync(async (req: Request, res: Response) => {
   if (!file) {
     throw new AppError('No file provided', httpStatus.BAD_REQUEST);
   }
-  const requestedSize = Number(req.body?.size);
-  if (!Number.isFinite(requestedSize) || requestedSize <= 0) {
-    throw new AppError('Invalid image size', httpStatus.BAD_REQUEST);
-  }
-  if (requestedSize !== file.size) {
-    throw new AppError('Image size mismatch', httpStatus.BAD_REQUEST);
-  }
   const alt = typeof req.body?.alt === 'string' ? req.body.alt : undefined;
   const useCase = req.body.useCase as IUseCase;
   const userId = req.user!.userId;
 
-  const image = await mediaService.uploadImage(file, requestedSize, alt, useCase, userId);
+  const image = await mediaService.uploadImage(file, alt, useCase, userId);
   sendResponse(res, httpStatus.CREATED, 'Image uploaded successfully', image);
 });
 
@@ -46,18 +39,11 @@ const update = catchAsync(async (req: Request, res: Response) => {
   if (!file) {
     throw new AppError('No file provided', httpStatus.BAD_REQUEST);
   }
-  const requestedSize = Number(req.body?.size);
-  if (!Number.isFinite(requestedSize) || requestedSize <= 0) {
-    throw new AppError('Invalid image size', httpStatus.BAD_REQUEST);
-  }
-  if (requestedSize !== file.size) {
-    throw new AppError('Image size mismatch', httpStatus.BAD_REQUEST);
-  }
   const alt = typeof req.body?.alt === 'string' ? req.body.alt : undefined;
   const useCase = req.body.useCase as IUseCase;
   const userId = req.user!.userId;
 
-  const image = await mediaService.updateImage(id, file, requestedSize, alt, useCase, userId);
+  const image = await mediaService.updateImage(id, file, alt, useCase, userId);
   sendResponse(res, httpStatus.OK, 'Image updated successfully', image);
 });
 
