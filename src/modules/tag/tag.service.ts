@@ -66,7 +66,7 @@ const deleteTagFromDB = async (userId: string, tagId: string) => {
       isDeleted: false,
     },
     { $set: { isDeleted: true } },
-    { new: true },
+    { returnDocument: 'after' },
   ).lean();
 
   if (!doc) {
@@ -80,7 +80,11 @@ type UpdatePayload = {
   description?: string | null;
 };
 
-const updateTagInDB = async (userId: string, tagId: string, payload: UpdatePayload) => {
+const updateTagInDB = async (
+  userId: string,
+  tagId: string,
+  payload: UpdatePayload,
+) => {
   if (!Types.ObjectId.isValid(tagId)) {
     throw new AppError('Invalid id', httpStatus.BAD_REQUEST);
   }
@@ -130,4 +134,3 @@ export const TagService = {
   deleteTagFromDB,
   updateTagInDB,
 };
-

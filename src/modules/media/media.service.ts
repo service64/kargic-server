@@ -59,7 +59,6 @@ const saveImageToDb = async (
 
 const uploadImage = async (
   file: Express.Multer.File,
-  size: number,
   alt: string | undefined,
   useCase: IUseCase,
   userId: string,
@@ -68,13 +67,17 @@ const uploadImage = async (
     throw new AppError('No file provided', httpStatus.BAD_REQUEST);
   }
 
+  const size = file.size;
   if (size > FILE_UPLOAD.MAX_SIZE) {
     throw new AppError(MEDIA_ERRORS.FILE_TOO_LARGE, httpStatus.BAD_REQUEST);
   }
 
   const allowedTypes = FILE_UPLOAD.ALLOWED_IMAGE_TYPES as readonly string[];
   if (!allowedTypes.includes(file.mimetype)) {
-    throw new AppError(MEDIA_ERRORS.UNSUPPORTED_FILE_TYPE, httpStatus.BAD_REQUEST);
+    throw new AppError(
+      MEDIA_ERRORS.UNSUPPORTED_FILE_TYPE,
+      httpStatus.BAD_REQUEST,
+    );
   }
 
   const r2Key = generateR2Key(file.originalname);
@@ -82,7 +85,15 @@ const uploadImage = async (
   const url = `${bucketUrl}/${r2Key}`;
 
   await uploadToR2(file.buffer, r2Key, file.mimetype);
-  return saveImageToDb(file.originalname, url, r2Key, size, alt, useCase, userId);
+  return saveImageToDb(
+    file.originalname,
+    url,
+    r2Key,
+    size,
+    alt,
+    useCase,
+    userId,
+  );
 };
 
 const getAllImages = async (query: Record<string, unknown>, userId: string) => {
@@ -101,7 +112,12 @@ const getAllImages = async (query: Record<string, unknown>, userId: string) => {
   }
 
   const [data, total] = await Promise.all([
-    Image.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+    Image.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec(),
     Image.countDocuments(filter).exec(),
   ]);
 
@@ -116,7 +132,10 @@ const getAllImages = async (query: Record<string, unknown>, userId: string) => {
   };
 };
 
-const getImageById = async (imageId: string, userId: string): Promise<IImage> => {
+const getImageById = async (
+  imageId: string,
+  userId: string,
+): Promise<IImage> => {
   if (!/^[0-9a-fA-F]{24}$/.test(imageId)) {
     throw new AppError(MEDIA_ERRORS.INVALID_IMAGE_ID, httpStatus.BAD_REQUEST);
   }
@@ -167,7 +186,6 @@ const deleteImage = async (imageId: string, userId: string): Promise<void> => {
 const updateImage = async (
   imageId: string,
   file: Express.Multer.File,
-  size: number,
   alt: string | undefined,
   useCase: IUseCase,
   userId: string,
@@ -180,13 +198,17 @@ const updateImage = async (
     throw new AppError('No file provided', httpStatus.BAD_REQUEST);
   }
 
+  const size = file.size;
   if (size > FILE_UPLOAD.MAX_SIZE) {
     throw new AppError(MEDIA_ERRORS.FILE_TOO_LARGE, httpStatus.BAD_REQUEST);
   }
 
   const allowedTypes = FILE_UPLOAD.ALLOWED_IMAGE_TYPES as readonly string[];
   if (!allowedTypes.includes(file.mimetype)) {
-    throw new AppError(MEDIA_ERRORS.UNSUPPORTED_FILE_TYPE, httpStatus.BAD_REQUEST);
+    throw new AppError(
+      MEDIA_ERRORS.UNSUPPORTED_FILE_TYPE,
+      httpStatus.BAD_REQUEST,
+    );
   }
 
   const newR2Key = generateR2Key(file.originalname);
@@ -196,7 +218,9 @@ const updateImage = async (
   await uploadToR2(file.buffer, newR2Key, file.mimetype);
 
   const ownerObjectId = new Types.ObjectId(userId);
-  const oldImage = await Image.findOne({ _id: imageId, userId: ownerObjectId }).lean().exec();
+  const oldImage = await Image.findOne({ _id: imageId, userId: ownerObjectId })
+    .lean()
+    .exec();
   if (!oldImage) {
     throw new AppError(MEDIA_ERRORS.IMAGE_NOT_FOUND, httpStatus.NOT_FOUND);
   }
@@ -215,7 +239,7 @@ const updateImage = async (
         ...(useCase !== undefined && { useCase }),
       },
     },
-    { new: true },
+    { returnDocument: 'after' },
   )
     .lean()
     .exec();
