@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import { ICategory } from './category.interface';
 import { Category } from './category.model';
 import { Image } from '../media/image.model';
+import { Product } from '../product/product.model';
 import {
   DeleteObjectCommand,
   getR2BucketName,
@@ -197,11 +198,53 @@ const deleteCategoryFromDB = async (id: string) => {
     );
   }
 
-  const doc = await Category.findByIdAndDelete(id);
+  const doc = await Category.findById(id);
   if (!doc) {
     throw new AppError('Category not found', httpStatus.NOT_FOUND);
   }
-  return doc;
+
+  if (doc.image) {
+    const image = await Image.findById(doc.image).lean();
+    if (image) {
+      const usedByOther = await Category.exists({
+        _id: { $ne: doc._id },
+        image: image._id,
+        isDeleted: false,
+      });
+      if (usedByOther) {
+        throw new AppError(
+          'Image is used by another category',
+          httpStatus.CONFLICT,
+        );
+      }
+
+      const usedByProduct = await Product.exists({
+        $or: [{ productImages: image._id }, { 'seo.image': image._id }],
+      });
+      if (usedByProduct) {
+        throw new AppError(
+          'Image is used by a product; update the product before deleting this category',
+          httpStatus.CONFLICT,
+        );
+      }
+
+      const client = getR2Client();
+      await client.send(
+        new DeleteObjectCommand({
+          Bucket: getR2BucketName(),
+          Key: image.r2_key,
+        }),
+      );
+
+      await Image.findByIdAndDelete(image._id);
+    }
+  }
+
+  const deleted = await Category.findByIdAndDelete(id);
+  if (!deleted) {
+    throw new AppError('Category not found', httpStatus.NOT_FOUND);
+  }
+  return deleted;
 };
 
 const deleteCategoryImageFromStorageAndDB = async (id: string) => {

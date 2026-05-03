@@ -47,5 +47,4 @@ router.delete(
   validateRequest(categoryIdParamZodSchema),
   CategoryController.deleteCategory,
 );
-
 export const CategoryRoutes = router;
