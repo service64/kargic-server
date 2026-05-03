@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import { ICategory } from './category.interface';
 import { Category } from './category.model';
 import { Image } from '../media/image.model';
+import { Product } from '../product/product.model';
 import {
   DeleteObjectCommand,
   getR2BucketName,
@@ -25,7 +26,7 @@ const makeSlug = (value: string) => {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
-  return `${base}-${Date.now()}`;
+  return `${base}`;
 };
 
 const createCategoryIntoDB = async (payload: CreatePayload) => {
@@ -55,7 +56,10 @@ const createCategoryIntoDB = async (payload: CreatePayload) => {
   });
 
   if (exists) {
-    throw new AppError('Category already exists under this parent', httpStatus.CONFLICT);
+    throw new AppError(
+      'Category already exists under this parent',
+      httpStatus.CONFLICT,
+    );
   }
 
   const categoryData: ICategory = {
@@ -93,7 +97,10 @@ const getCategoryByIdFromDB = async (id: string) => {
   return doc;
 };
 
-const updateCategoryInDB = async (id: string, body: Record<string, unknown>) => {
+const updateCategoryInDB = async (
+  id: string,
+  body: Record<string, unknown>,
+) => {
   const category = await Category.findOne({ _id: id, isDeleted: false });
   if (!category) {
     throw new AppError('Category not found', httpStatus.NOT_FOUND);
@@ -124,7 +131,10 @@ const updateCategoryInDB = async (id: string, body: Record<string, unknown>) => 
     category.parentCategory = null;
   } else if (typeof body.parentCategory === 'string') {
     if (body.parentCategory === id) {
-      throw new AppError('Category cannot be its own parent', httpStatus.BAD_REQUEST);
+      throw new AppError(
+        'Category cannot be its own parent',
+        httpStatus.BAD_REQUEST,
+      );
     }
     const parentDoc = await Category.findOne({
       _id: body.parentCategory,
@@ -143,7 +153,10 @@ const updateCategoryInDB = async (id: string, body: Record<string, unknown>) => 
     isDeleted: false,
   }).lean();
   if (duplicate) {
-    throw new AppError('Category already exists under this parent', httpStatus.CONFLICT);
+    throw new AppError(
+      'Category already exists under this parent',
+      httpStatus.CONFLICT,
+    );
   }
 
   await category.save();
@@ -165,7 +178,7 @@ const softDeleteCategoryFromDB = async (id: string) => {
   const doc = await Category.findOneAndUpdate(
     { _id: id, isDeleted: false },
     { $set: { isDeleted: true, deletedAt: new Date() } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!doc) {
     throw new AppError('Category not found', httpStatus.NOT_FOUND);
@@ -185,11 +198,53 @@ const deleteCategoryFromDB = async (id: string) => {
     );
   }
 
-  const doc = await Category.findByIdAndDelete(id);
+  const doc = await Category.findById(id);
   if (!doc) {
     throw new AppError('Category not found', httpStatus.NOT_FOUND);
   }
-  return doc;
+
+  if (doc.image) {
+    const image = await Image.findById(doc.image).lean();
+    if (image) {
+      const usedByOther = await Category.exists({
+        _id: { $ne: doc._id },
+        image: image._id,
+        isDeleted: false,
+      });
+      if (usedByOther) {
+        throw new AppError(
+          'Image is used by another category',
+          httpStatus.CONFLICT,
+        );
+      }
+
+      const usedByProduct = await Product.exists({
+        $or: [{ productImages: image._id }, { 'seo.image': image._id }],
+      });
+      if (usedByProduct) {
+        throw new AppError(
+          'Image is used by a product; update the product before deleting this category',
+          httpStatus.CONFLICT,
+        );
+      }
+
+      const client = getR2Client();
+      await client.send(
+        new DeleteObjectCommand({
+          Bucket: getR2BucketName(),
+          Key: image.r2_key,
+        }),
+      );
+
+      await Image.findByIdAndDelete(image._id);
+    }
+  }
+
+  const deleted = await Category.findByIdAndDelete(id);
+  if (!deleted) {
+    throw new AppError('Category not found', httpStatus.NOT_FOUND);
+  }
+  return deleted;
 };
 
 const deleteCategoryImageFromStorageAndDB = async (id: string) => {

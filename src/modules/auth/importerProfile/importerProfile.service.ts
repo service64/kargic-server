@@ -34,10 +34,9 @@ const getAllImporterProfilesFromDB = async () => {
 };
 
 const getImporterProfileByIdFromDB = async (userId: string) => {
-  const doc = await ImporterProfile.findOne({ userId: new Types.ObjectId(userId) }).populate(
-    'userId',
-    'email phone role name age',
-  );
+  const doc = await ImporterProfile.findOne({
+    userId: new Types.ObjectId(userId),
+  }).populate('userId', 'email phone role name age');
   // console.log("doc",doc);
   if (!doc) {
     throw new AppError('Importer profile not found', httpStatus.NOT_FOUND);
@@ -60,7 +59,7 @@ const updateImporterProfileInDB = async (
     id,
     { $set: payload },
     {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     },
   );

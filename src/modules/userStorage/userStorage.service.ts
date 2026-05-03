@@ -79,7 +79,7 @@ const updateUserStorageByUserIdInDB = async (
   const doc = await UserStorage.findOneAndUpdate(
     { userId: toObjectId(userId) },
     { $set },
-    { new: true, runValidators: true },
+    { returnDocument: 'after', runValidators: true },
   ).populate('userId', 'email phone role');
 
   if (!doc) {

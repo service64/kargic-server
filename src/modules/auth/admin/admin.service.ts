@@ -37,7 +37,10 @@ const assertImagesExist = async (...ids: string[]) => {
   }
 };
 
-const assertReportsToAdmin = async (reportsToId: string | undefined, excludeAdminId?: string) => {
+const assertReportsToAdmin = async (
+  reportsToId: string | undefined,
+  excludeAdminId?: string,
+) => {
   if (!reportsToId) return;
   const manager = await Admin.findOne({
     _id: toObjectId(reportsToId),
@@ -47,16 +50,25 @@ const assertReportsToAdmin = async (reportsToId: string | undefined, excludeAdmi
     throw new AppError('reportsTo admin not found', httpStatus.BAD_REQUEST);
   }
   if (excludeAdminId && reportsToId === excludeAdminId) {
-    throw new AppError('Admin cannot report to themselves', httpStatus.BAD_REQUEST);
+    throw new AppError(
+      'Admin cannot report to themselves',
+      httpStatus.BAD_REQUEST,
+    );
   }
 };
 
 const createAdminIntoDB = async (payload: CreatePayload) => {
   await assertUserExists(payload.userId);
 
-  const exists = await Admin.findOne({ userId: toObjectId(payload.userId), isDeleted: false });
+  const exists = await Admin.findOne({
+    userId: toObjectId(payload.userId),
+    isDeleted: false,
+  });
   if (exists) {
-    throw new AppError('Admin profile already exists for this user', httpStatus.CONFLICT);
+    throw new AppError(
+      'Admin profile already exists for this user',
+      httpStatus.CONFLICT,
+    );
   }
 
   await assertImagesExist(payload.profileImage, payload.nid);
@@ -138,7 +150,8 @@ const updateAdminInDB = async (id: string, body: Record<string, unknown>) => {
   } else if (typeof body.department === 'string') {
     set.department = body.department;
   }
-  if (Array.isArray(body.permissions)) set.permissions = body.permissions as string[];
+  if (Array.isArray(body.permissions))
+    set.permissions = body.permissions as string[];
   if (typeof body.isActive === 'boolean') set.isActive = body.isActive;
   if (typeof body.isDeleted === 'boolean') set.isDeleted = body.isDeleted;
 
@@ -160,12 +173,17 @@ const updateAdminInDB = async (id: string, body: Record<string, unknown>) => {
 
   if (body.joinDate != null) {
     set.joinDate =
-      body.joinDate instanceof Date ? body.joinDate : new Date(String(body.joinDate));
+      body.joinDate instanceof Date
+        ? body.joinDate
+        : new Date(String(body.joinDate));
   }
 
   const hasUnset = Object.keys(unsetFields).length > 0;
   if (Object.keys(set).length === 0 && !hasUnset) {
-    throw new AppError('At least one field is required to update', httpStatus.BAD_REQUEST);
+    throw new AppError(
+      'At least one field is required to update',
+      httpStatus.BAD_REQUEST,
+    );
   }
 
   const updateDoc: Record<string, unknown> = {};
@@ -176,7 +194,10 @@ const updateAdminInDB = async (id: string, body: Record<string, unknown>) => {
     updateDoc.$unset = unsetFields;
   }
 
-  const doc = await Admin.findByIdAndUpdate(id, updateDoc, { new: true, runValidators: true })
+  const doc = await Admin.findByIdAndUpdate(id, updateDoc, {
+    returnDocument: 'after',
+    runValidators: true,
+  })
     .populate('userId', 'email phone activeRole')
     .populate('profileImage', 'url name alt')
     .populate('nid', 'url name alt')
@@ -193,7 +214,7 @@ const softDeleteAdminFromDB = async (id: string) => {
   const doc = await Admin.findByIdAndUpdate(
     id,
     { $set: { isDeleted: true, isActive: false } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!doc) {
     throw new AppError('Admin not found', httpStatus.NOT_FOUND);
