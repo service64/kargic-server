@@ -6,7 +6,6 @@ import { ProductController } from './product.controller';
 import {
   createProductZodSchema,
   productIdParamZodSchema,
-  productImageParamZodSchema,
   updateProductZodSchema,
 } from './product.validation';
 
@@ -47,13 +46,6 @@ router.delete(
   auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   validateRequest(productIdParamZodSchema),
   ProductController.deleteMyProduct,
-);
-
-router.delete(
-  '/:id/image/:imageId',
-  auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
-  validateRequest(productImageParamZodSchema),
-  ProductController.deleteProductImage,
 );
 
 //  get product by userId user id get from jwt token

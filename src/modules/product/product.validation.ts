@@ -23,7 +23,6 @@ export const createProductZodSchema = z.object({
     categoryId: objectIdString,
     moq: z.string().optional(),
     priceRange: priceRangeSchema.optional(),
-    currency: z.literal('USD').optional(),
     productionLeadTime: z.string().optional(),
     supplyCapacity: z.string().optional(),
     productImages: z.array(objectIdString).min(1),
@@ -41,8 +40,8 @@ export const createProductZodSchema = z.object({
       })
       .optional(),
     originCountry: z.string().optional(),
-    brand: z.string().optional(),
-    tags: z.array(z.string().min(1)).optional(),
+    brand: objectIdString.optional(),
+    tags: z.array(objectIdString).optional(),
     status: z.enum(['draft', 'active', 'inactive']).optional(),
     isFeatured: z.boolean().optional(),
     seo: z
@@ -64,15 +63,6 @@ export const productIdParamZodSchema = z.object({
   query: z.any().optional(),
 });
 
-export const productImageParamZodSchema = z.object({
-  params: z.object({
-    id: objectIdString,
-    imageId: objectIdString,
-  }),
-  body: z.any().optional(),
-  query: z.any().optional(),
-});
-
 export const updateProductZodSchema = z.object({
   params: z.object({
     id: objectIdString,
@@ -84,7 +74,6 @@ export const updateProductZodSchema = z.object({
       categoryId: objectIdString.optional(),
       moq: z.string().optional().nullable(),
       priceRange: priceRangeSchema.optional(),
-      currency: z.literal('USD').optional().nullable(),
       productionLeadTime: z.string().optional().nullable(),
       supplyCapacity: z.string().optional().nullable(),
       productImages: z.array(objectIdString).min(1).optional(),
@@ -102,8 +91,8 @@ export const updateProductZodSchema = z.object({
         })
         .optional(),
       originCountry: z.string().optional().nullable(),
-      brand: z.string().optional().nullable(),
-      tags: z.array(z.string().min(1)).optional(),
+      brand: objectIdString.optional().nullable(),
+      tags: z.array(objectIdString).optional(),
       status: z.enum(['draft', 'active', 'inactive']).optional(),
       isFeatured: z.boolean().optional(),
       seo: z
