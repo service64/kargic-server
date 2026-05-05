@@ -25,6 +25,18 @@ const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFun
     });
   }
 
+  /** Multer fileFilter uses plain `Error` (not MulterError) — surface as 400. */
+  if (
+    typeof err?.message === 'string' &&
+    err.message.includes('Only JPEG, PNG, and WebP')
+  ) {
+    return res.status(httpStatus.BAD_REQUEST).json({
+      status: httpStatus.BAD_REQUEST,
+      message: err.message,
+      data: null,
+    });
+  }
+
   // Duplicate key
   if (err && (err.code === 11000 || (err.name === 'MongoServerError' && err.code === 11000))) {
     return res.status(httpStatus.CONFLICT).json({

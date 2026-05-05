@@ -12,7 +12,12 @@ const productSchema = new Schema<IProduct>(
       min: { type: Number },
       max: { type: Number },
     },
-    currency: { type: String, trim: true },
+    currency: {
+      type: String,
+      trim: true,
+      enum: ['USD'],
+      default: 'USD',
+    },
     productionLeadTime: { type: String, trim: true },
     supplyCapacity: { type: String, trim: true },
     productImages: [{ type: Schema.Types.ObjectId, ref: 'Image', required: true }],
@@ -23,12 +28,6 @@ const productSchema = new Schema<IProduct>(
       {
         key: { type: String, required: true, trim: true },
         value: { type: String, required: true, trim: true },
-      },
-    ],
-    variants: [
-      {
-        name: { type: String, required: true, trim: true },
-        options: [{ type: String, required: true, trim: true }],
       },
     ],
     stock: { type: Number, min: 0 },

@@ -7,11 +7,6 @@ const specificationSchema = z.object({
   value: z.string().min(1),
 });
 
-const variantSchema = z.object({
-  name: z.string().min(1),
-  options: z.array(z.string().min(1)).min(1),
-});
-
 const priceRangeSchema = z
   .object({
     min: z.number().nonnegative(),
@@ -28,14 +23,13 @@ export const createProductZodSchema = z.object({
     categoryId: objectIdString,
     moq: z.string().optional(),
     priceRange: priceRangeSchema.optional(),
-    currency: z.string().optional(),
+    currency: z.literal('USD').optional(),
     productionLeadTime: z.string().optional(),
     supplyCapacity: z.string().optional(),
     productImages: z.array(objectIdString).min(1),
     description: z.string().optional(),
     shortDescription: z.string().optional(),
     specifications: z.array(specificationSchema).optional(),
-    variants: z.array(variantSchema).optional(),
     stock: z.number().int().nonnegative().optional(),
     unit: z.string().optional(),
     weight: z.number().nonnegative().optional(),
@@ -90,14 +84,13 @@ export const updateProductZodSchema = z.object({
       categoryId: objectIdString.optional(),
       moq: z.string().optional().nullable(),
       priceRange: priceRangeSchema.optional(),
-      currency: z.string().optional().nullable(),
+      currency: z.literal('USD').optional().nullable(),
       productionLeadTime: z.string().optional().nullable(),
       supplyCapacity: z.string().optional().nullable(),
       productImages: z.array(objectIdString).min(1).optional(),
       description: z.string().optional().nullable(),
       shortDescription: z.string().optional().nullable(),
       specifications: z.array(specificationSchema).optional(),
-      variants: z.array(variantSchema).optional(),
       stock: z.number().int().nonnegative().optional(),
       unit: z.string().optional().nullable(),
       weight: z.number().nonnegative().optional(),
