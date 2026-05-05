@@ -22,14 +22,13 @@ type CreatePayload = {
   categoryId: string;
   moq?: string;
   priceRange?: { min: number; max: number };
-  currency?: string;
+  currency?: "USD";
   productionLeadTime?: string;
   supplyCapacity?: string;
   productImages: string[];
   description?: string;
   shortDescription?: string;
   specifications?: { key: string; value: string }[];
-  variants?: { name: string; options: string[] }[];
   stock?: number;
   unit?: string;
   weight?: number;
@@ -117,7 +116,7 @@ const createProductIntoDB = async (payload: CreatePayload) => {
 
   if (payload.moq) productData.moq = payload.moq;
   if (payload.priceRange) productData.priceRange = payload.priceRange;
-  if (payload.currency) productData.currency = payload.currency;
+  productData.currency = payload.currency ?? "USD";
   if (payload.productionLeadTime)
     productData.productionLeadTime = payload.productionLeadTime;
   if (payload.supplyCapacity)
@@ -127,7 +126,6 @@ const createProductIntoDB = async (payload: CreatePayload) => {
     productData.shortDescription = payload.shortDescription;
   if (payload.specifications)
     productData.specifications = payload.specifications;
-  if (payload.variants) productData.variants = payload.variants;
   if (payload.stock !== undefined) productData.stock = payload.stock;
   if (payload.unit) productData.unit = payload.unit;
   if (payload.weight !== undefined) productData.weight = payload.weight;
@@ -215,8 +213,9 @@ const updateMyProductInDB = async (
   if (body.moq === null) product.moq = undefined;
   else if (typeof body.moq === "string") product.moq = body.moq;
 
-  if (body.currency === null) product.currency = undefined;
-  else if (typeof body.currency === "string") product.currency = body.currency;
+  if (body.currency !== undefined) {
+    product.currency = "USD";
+  }
 
   if (body.productionLeadTime === null) product.productionLeadTime = undefined;
   else if (typeof body.productionLeadTime === "string") {
@@ -238,9 +237,6 @@ const updateMyProductInDB = async (
 
   if (Array.isArray(body.specifications)) {
     product.specifications = body.specifications as IProduct["specifications"];
-  }
-  if (Array.isArray(body.variants)) {
-    product.variants = body.variants as IProduct["variants"];
   }
   if (typeof body.stock === "number") product.stock = body.stock;
   if (body.unit === null) product.unit = undefined;

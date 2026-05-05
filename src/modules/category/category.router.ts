@@ -29,22 +29,25 @@ router.patch(
   validateRequest(updateCategoryZodSchema),
   CategoryController.updateCategory,
 );
-router.patch(
-  '/:id/soft-delete',
-  auth(USER_ROLES.ADMIN),
-  validateRequest(categoryIdParamZodSchema),
-  CategoryController.softDeleteCategory,
-);
-router.delete(
-  '/:id/image',
-  auth(USER_ROLES.ADMIN),
-  validateRequest(categoryIdParamZodSchema),
-  CategoryController.deleteCategoryImage,
-);
+
 router.delete(
   '/:id',
   auth(USER_ROLES.ADMIN),
   validateRequest(categoryIdParamZodSchema),
   CategoryController.deleteCategory,
 );
+
 export const CategoryRoutes = router;
+// router.delete(
+//   '/:id/image',
+//   auth(USER_ROLES.ADMIN),
+//   validateRequest(categoryIdParamZodSchema),
+//   CategoryController.deleteCategoryImage,
+// );
+
+// router.patch(
+//   '/:id/soft-delete',
+//   auth(USER_ROLES.ADMIN),
+//   validateRequest(categoryIdParamZodSchema),
+//   CategoryController.softDeleteCategory,
+// );

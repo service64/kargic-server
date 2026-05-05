@@ -1,5 +1,8 @@
 import { Types } from "mongoose";
 
+/** All product prices use this currency only. */
+export type ProductCurrency = "USD";
+
 export interface IProduct {
     userId: Types.ObjectId;
     productName: string;
@@ -10,7 +13,7 @@ export interface IProduct {
       min: number;
       max: number;
     };
-    currency?: string;
+    currency?: ProductCurrency;
     productionLeadTime?: string;
     supplyCapacity?: string;
     productImages: Types.ObjectId[];
@@ -23,12 +26,8 @@ export interface IProduct {
     specifications?: {
       key: string;
       value: string;
-    }[]; 
-    variants?: {
-      name: string; // e.g. Size, Color
-      options: string[]; // e.g. ["M", "L"]
     }[];
-  
+
     stock?: number; 
     unit?: string; // e.g. piece, kg, ton 
     weight?: number;

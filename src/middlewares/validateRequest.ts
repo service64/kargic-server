@@ -1,8 +1,8 @@
-import { ZodObject } from 'zod';
 import { Request, Response, NextFunction } from 'express';
+import { ZodError, type ZodType } from 'zod';
 
 const validateRequest =
-  (schema: ZodObject<any>) =>
+  (schema: ZodType) =>
   (req: Request, res: Response, next: NextFunction) => {
     try {
       schema.parse({
@@ -12,13 +12,16 @@ const validateRequest =
       });
 
       next();
-    } catch (error: any) {
-      return res.status(400).json({
-        status: 400,
-        message: 'Validation Error',
-        data: null,
-        errors: error.errors,
-      });
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          status: 400,
+          message: 'Validation Error',
+          data: null,
+          errors: error.issues,
+        });
+      }
+      next(error as Error);
     }
   };
 
