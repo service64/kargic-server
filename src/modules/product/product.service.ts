@@ -22,7 +22,6 @@ type CreatePayload = {
   categoryId: string;
   moq?: string;
   priceRange?: { min: number; max: number };
-  currency?: "USD";
   productionLeadTime?: string;
   supplyCapacity?: string;
   productImages: string[];
@@ -116,7 +115,7 @@ const createProductIntoDB = async (payload: CreatePayload) => {
 
   if (payload.moq) productData.moq = payload.moq;
   if (payload.priceRange) productData.priceRange = payload.priceRange;
-  productData.currency = payload.currency ?? "USD";
+  productData.currency = "USD";
   if (payload.productionLeadTime)
     productData.productionLeadTime = payload.productionLeadTime;
   if (payload.supplyCapacity)
@@ -131,8 +130,10 @@ const createProductIntoDB = async (payload: CreatePayload) => {
   if (payload.weight !== undefined) productData.weight = payload.weight;
   if (payload.dimensions) productData.dimensions = payload.dimensions;
   if (payload.originCountry) productData.originCountry = payload.originCountry;
-  if (payload.brand) productData.brand = payload.brand;
-  if (payload.tags) productData.tags = payload.tags;
+  if (payload.brand) productData.brand = new Types.ObjectId(payload.brand);
+  if (payload.tags) {
+    productData.tags = payload.tags.map((tagId) => new Types.ObjectId(tagId));
+  }
   if (payload.status) productData.status = payload.status;
   if (payload.isFeatured !== undefined)
     productData.isFeatured = payload.isFeatured;
@@ -213,10 +214,6 @@ const updateMyProductInDB = async (
   if (body.moq === null) product.moq = undefined;
   else if (typeof body.moq === "string") product.moq = body.moq;
 
-  if (body.currency !== undefined) {
-    product.currency = "USD";
-  }
-
   if (body.productionLeadTime === null) product.productionLeadTime = undefined;
   else if (typeof body.productionLeadTime === "string") {
     product.productionLeadTime = body.productionLeadTime;
@@ -248,8 +245,10 @@ const updateMyProductInDB = async (
   if (body.originCountry === null) product.originCountry = undefined;
   else if (typeof body.originCountry === "string") product.originCountry = body.originCountry;
   if (body.brand === null) product.brand = undefined;
-  else if (typeof body.brand === "string") product.brand = body.brand;
-  if (Array.isArray(body.tags)) product.tags = body.tags as string[];
+  else if (typeof body.brand === "string") product.brand = new Types.ObjectId(body.brand);
+  if (Array.isArray(body.tags)) {
+    product.tags = (body.tags as string[]).map((tagId) => new Types.ObjectId(tagId));
+  }
   if (typeof body.status === "string") product.status = body.status as IProduct["status"];
   if (typeof body.isFeatured === "boolean") product.isFeatured = body.isFeatured;
   if (body.priceRange && typeof body.priceRange === "object") {
@@ -298,57 +297,38 @@ const deleteMyProductFromDB = async (
   }
 
   assertManagePermission(product.userId, userId, activeRole);
+
+  const relatedImageIds = new Set<string>();
+  for (const imgId of product.productImages ?? []) {
+    if (imgId) relatedImageIds.add(String(imgId));
+  }
+  if (product.seo?.image) {
+    relatedImageIds.add(String(product.seo.image));
+  }
+
   await Product.findByIdAndDelete(id);
 
-  return { deleted: true as const };
-};
+  // Remove images from storage + Image collection only when orphaned
+  const client = getR2Client();
+  const bucketName = getR2BucketName();
+  for (const imageId of relatedImageIds) {
+    const imageObjectId = new Types.ObjectId(imageId);
+    const stillUsedInProducts = await Product.exists({
+      $or: [{ productImages: imageObjectId }, { "seo.image": imageObjectId }],
+    });
 
-const deleteProductImageFromDB = async (
-  id: string,
-  imageId: string,
-  userId: string,
-  activeRole: ActiveRole,
-) => {
-  const product = await Product.findById(id);
-  if (!product) {
-    throw new AppError("Product not found", httpStatus.NOT_FOUND);
-  }
+    if (stillUsedInProducts) continue;
 
-  assertManagePermission(product.userId, userId, activeRole);
-
-  const imageObjectId = new Types.ObjectId(imageId);
-  const belongsToProduct = product.productImages.some(
-    (imgId) => String(imgId) === imageId,
-  );
-
-  if (!belongsToProduct) {
-    throw new AppError("Image does not belong to this product", httpStatus.BAD_REQUEST);
-  }
-
-  product.productImages = product.productImages.filter(
-    (imgId) => String(imgId) !== imageId,
-  );
-  if (product.seo?.image && String(product.seo.image) === imageId) {
-    product.seo.image = undefined;
-  }
-  await product.save();
-
-  const stillUsedInProducts = await Product.exists({
-    $or: [{ productImages: imageObjectId }, { "seo.image": imageObjectId }],
-  });
-
-  if (!stillUsedInProducts) {
     const imageDoc = await Image.findById(imageObjectId).lean();
-    if (imageDoc) {
-      const client = getR2Client();
-      await client.send(
-        new DeleteObjectCommand({
-          Bucket: getR2BucketName(),
-          Key: imageDoc.r2_key,
-        }),
-      );
-      await Image.findByIdAndDelete(imageObjectId);
-    }
+    if (!imageDoc) continue;
+
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: imageDoc.r2_key,
+      }),
+    );
+    await Image.findByIdAndDelete(imageObjectId);
   }
 
   return { deleted: true as const };
@@ -411,7 +391,7 @@ const buildProductListQuery = (
   extraExcludeFields: string[] = [],
 ) =>
   new QueryBuilder(baseQuery, query)
-    .search(["productName", "hsCode", "slug", "brand", "tags"])
+    .search(["productName", "hsCode", "slug"])
     .filter(extraExcludeFields)
     .sort()
     .fields(
@@ -458,5 +438,4 @@ export const ProductService = {
   getProductByIdFromDB,
   updateMyProductInDB,
   deleteMyProductFromDB,
-  deleteProductImageFromDB,
 };

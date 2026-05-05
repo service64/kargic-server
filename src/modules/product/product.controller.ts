@@ -55,17 +55,6 @@ const deleteMyProduct = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Product deleted successfully', result);
 });
 
-const deleteProductImage = catchAsync(async (req: Request, res: Response) => {
-  const { id, imageId } = req.params as { id: string; imageId: string };
-  const result = await ProductService.deleteProductImageFromDB(
-    id,
-    imageId,
-    req.user!.userId,
-    req.user!.activeRole,
-  );
-  return sendResponse(res, httpStatus.OK, 'Product image deleted successfully', result);
-});
-
 export const ProductController = {
   createProduct,
   getAllProducts,
@@ -73,5 +62,4 @@ export const ProductController = {
   getProductById,
   updateMyProduct,
   deleteMyProduct,
-  deleteProductImage,
 };

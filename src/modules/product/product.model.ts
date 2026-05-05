@@ -39,8 +39,8 @@ const productSchema = new Schema<IProduct>(
       height: { type: Number, min: 0 },
     },
     originCountry: { type: String, trim: true },
-    brand: { type: String, trim: true },
-    tags: [{ type: String, trim: true }],
+    brand: { type: Schema.Types.ObjectId, ref: 'Brand' },
+    tags: [{ type: Schema.Types.ObjectId, ref: 'Tag' }],
     status: {
       type: String,
       enum: ['draft', 'active', 'inactive'],
