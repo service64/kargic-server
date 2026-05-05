@@ -38,8 +38,8 @@ export interface IProduct {
     };
   
     originCountry?: string;
-    brand?: string;
-    tags?: string[];
+    brand?: Types.ObjectId;
+    tags?: Types.ObjectId[];
     status?: 'draft' | 'active' | 'inactive';
     isFeatured?: boolean;
     views?: number;
