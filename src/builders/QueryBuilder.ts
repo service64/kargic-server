@@ -92,7 +92,14 @@ class QueryBuilder<T> {
 
     excludeFields.forEach((el) => delete queryObj[el]);
 
-    const mongoFilter = this.withMongoOperators(queryObj);
+    // Preserve aggregation $expr (must not go through withMongoOperators — it would corrupt $ifNull, etc.)
+    const rawExpr = queryObj.$expr;
+    delete queryObj.$expr;
+
+    const mongoFilter = this.withMongoOperators(queryObj) as Record<string, unknown>;
+    if (rawExpr !== undefined) {
+      mongoFilter.$expr = rawExpr;
+    }
 
     this.modelQuery = this.modelQuery.find(mongoFilter as Record<string, unknown>);
 

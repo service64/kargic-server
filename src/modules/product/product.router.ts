@@ -6,6 +6,7 @@ import { ProductController } from './product.controller';
 import {
   createProductZodSchema,
   productIdParamZodSchema,
+  productSlugParamZodSchema,
   updateProductZodSchema,
 } from './product.validation';
 
@@ -27,11 +28,10 @@ router.get(
   auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   ProductController.getMyProducts,
 );
-//  document kal nissi
 router.get(
-  '/:id',
-  validateRequest(productIdParamZodSchema),
-  ProductController.getProductById,
+  '/:slug',
+  validateRequest(productSlugParamZodSchema),
+  ProductController.getProductBySlug,
 );
 
 router.patch(

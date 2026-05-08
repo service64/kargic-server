@@ -28,9 +28,9 @@ const getMyProducts = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'My products retrieved successfully', result);
 });
 
-const getProductById = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params as { id: string };
-  const result = await ProductService.getProductByIdFromDB(id);
+const getProductBySlug = catchAsync(async (req: Request, res: Response) => {
+  const { slug } = req.params as { slug: string };
+  const result = await ProductService.getProductBySlugFromDB(slug);
   return sendResponse(res, httpStatus.OK, 'Product retrieved successfully', result);
 });
 
@@ -59,7 +59,7 @@ export const ProductController = {
   createProduct,
   getAllProducts,
   getMyProducts,
-  getProductById,
+  getProductBySlug,
   updateMyProduct,
   deleteMyProduct,
 };
