@@ -40,7 +40,6 @@ export const createProductZodSchema = z.object({
       })
       .optional(),
     originCountry: z.string().optional(),
-    brand: objectIdString.optional(),
     tags: z.array(objectIdString).optional(),
     status: z.enum(['draft', 'active', 'inactive']).optional(),
     isFeatured: z.boolean().optional(),
@@ -58,6 +57,23 @@ export const createProductZodSchema = z.object({
 export const productIdParamZodSchema = z.object({
   params: z.object({
     id: objectIdString,
+  }),
+  body: z.any().optional(),
+  query: z.any().optional(),
+});
+
+/** Public detail route: `GET /:slug` (not Mongo `_id`). */
+export const productSlugParamZodSchema = z.object({
+  params: z.object({
+    slug: z
+      .string()
+      .trim()
+      .min(1)
+      .max(280)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Invalid slug')
+      .refine((s) => !/^[a-fA-F0-9]{24}$/.test(s), {
+        message: 'Use product slug, not document id',
+      }),
   }),
   body: z.any().optional(),
   query: z.any().optional(),
@@ -91,7 +107,6 @@ export const updateProductZodSchema = z.object({
         })
         .optional(),
       originCountry: z.string().optional().nullable(),
-      brand: objectIdString.optional().nullable(),
       tags: z.array(objectIdString).optional(),
       status: z.enum(['draft', 'active', 'inactive']).optional(),
       isFeatured: z.boolean().optional(),
