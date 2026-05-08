@@ -429,7 +429,9 @@ const shapeProductListData = (
         | { _id?: Types.ObjectId; categoryName?: string }
         | Types.ObjectId;
       priceRange?: { min: number; max: number };
-      productImages?: Array<{ _id?: Types.ObjectId } | Types.ObjectId>;
+      productImages?: Array<
+        { _id?: Types.ObjectId; url?: string } | Types.ObjectId | null
+      >;
       slug?: string;
       tags?: Array<string | Types.ObjectId | { _id?: Types.ObjectId }>;
       status?: "draft" | "active" | "inactive";
@@ -457,11 +459,15 @@ const shapeProductListData = (
         : "";
 
     const productImages = Array.isArray(populatedImages)
-      ? populatedImages.map((image) =>
-          image && typeof image === "object" && "_id" in image
-            ? String(image._id)
-            : String(image),
-        )
+      ? populatedImages
+          .map((image) => {
+            if (!image || typeof image !== "object" || !("url" in image)) {
+              return null;
+            }
+            const url = (image as { url?: string }).url;
+            return typeof url === "string" && url !== "" ? url : null;
+          })
+          .filter((u): u is string => u !== null)
       : [];
 
     const tagIds =
@@ -515,8 +521,70 @@ const buildProductListQuery = (
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 
+/** Flat `minPrice` / `maxPrice` → `$expr` overlap on product band [pMin, pMax]. */
+function parseFiniteQueryNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (Array.isArray(value)) {
+    return parseFiniteQueryNumber(value[0]);
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function mapFlatPriceParamsToRangeFilter(
+  query: Record<string, unknown>,
+): Record<string, unknown> {
+  const q = { ...query };
+  const minPrice = parseFiniteQueryNumber(q.minPrice);
+  let maxPrice = parseFiniteQueryNumber(q.maxPrice);
+  delete q.minPrice;
+  delete q.maxPrice;
+
+  if (
+    minPrice !== undefined &&
+    maxPrice !== undefined &&
+    maxPrice < minPrice
+  ) {
+    maxPrice = undefined;
+  }
+
+  /*
+   * Overlap(user band, product band):
+   * - Min only (from uMin upward): effective top of band >= uMin → ifNull(p.max, p.min) >= uMin
+   * - Max only (up to uMax): floor of band <= uMax → ifNull(p.min, p.max) <= uMax
+   * - Both: AND of the two (middle / “center” band)
+   */
+  const parts: Record<string, unknown>[] = [];
+
+  if (minPrice !== undefined && minPrice >= 0) {
+    parts.push({
+      $gte: [
+        { $ifNull: ["$priceRange.max", "$priceRange.min"] },
+        minPrice,
+      ],
+    });
+  }
+
+  if (maxPrice !== undefined && maxPrice >= 0) {
+    parts.push({
+      $lte: [{ $ifNull: ["$priceRange.min", "$priceRange.max"] }, maxPrice],
+    });
+  }
+
+  if (parts.length === 1) {
+    q.$expr = parts[0];
+  } else if (parts.length > 1) {
+    q.$expr = { $and: parts };
+  }
+
+  return q;
+}
+
 const getAllProductsFromDB = async (query: Record<string, unknown>) => {
-  const productQuery = buildProductListQuery(Product.find(), query);
+  const productQuery = buildProductListQuery(
+    Product.find(),
+    mapFlatPriceParamsToRangeFilter(query),
+  );
 
   const meta = await productQuery.countTotal();
   const products = await productQuery.modelQuery
@@ -524,7 +592,10 @@ const getAllProductsFromDB = async (query: Record<string, unknown>) => {
       path: "categoryId",
       select: "categoryName slug",
     })
-    .populate("productImages", "_id")
+    .populate({
+      path: "productImages",
+      select: "url -_id",
+    })
     .lean();
 
   const data = shapeProductListData(products as unknown[]);
@@ -545,7 +616,10 @@ const getMyProductsFromDB = async (
       path: "categoryId",
       select: "categoryName slug",
     })
-    .populate("productImages", "_id")
+    .populate({
+      path: "productImages",
+      select: "url -_id",
+    })
     .lean();
 
   const data = shapeProductListData(products as unknown[], {
