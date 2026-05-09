@@ -36,8 +36,10 @@ export default {
    * Bootstrap + first login for `POST /user/super-admin/login`.
    * If no SUPER_ADMIN exists, a matching email/password creates User + Admin + placeholder images.
    */
-  super_admin_email: (process.env.SUPER_ADMIN_EMAIL || '').trim(),
-  super_admin_password: process.env.SUPER_ADMIN_PASSWORD || '',
+  /** Normalized for comparisons; use same casing in .env or any case at login. */
+  super_admin_email: (process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase(),
+  /** Trimmed so trailing newlines/spaces from .env do not break login. */
+  super_admin_password: (process.env.SUPER_ADMIN_PASSWORD || '').trim(),
 
   /** HttpOnly cookie name for refresh token (super-admin login). */
   refresh_token_cookie_name:
