@@ -38,8 +38,39 @@ const assertSuperAdminProfile = async (userId: Types.ObjectId) => {
   return Boolean(superAdmin);
 };
 
-const anySuperAdminExists = () =>
-  Admin.exists({ role: "SUPER_ADMIN", isDeleted: false });
+/** True if at least one login-ready super admin is backed by an existing User. */
+const anySuperAdminExists = async (): Promise<boolean> => {
+  const userIds = await Admin.distinct("userId", {
+    role: "SUPER_ADMIN",
+    isDeleted: false,
+    isActive: true,
+  });
+  if (userIds.length === 0) {
+    return false;
+  }
+  return (await User.countDocuments({ _id: { $in: userIds } })) > 0;
+};
+
+const findBlockingNonSuperAdmin = (userId: Types.ObjectId) =>
+  Admin.findOne({
+    userId,
+    isDeleted: false,
+    role: { $in: ["ADMIN", "SUPPORT"] },
+  }).lean();
+
+const reactivateInactiveSuperAdminIfNeeded = async (
+  userId: Types.ObjectId,
+): Promise<void> => {
+  await Admin.updateOne(
+    {
+      userId,
+      role: "SUPER_ADMIN",
+      isDeleted: false,
+      isActive: false,
+    },
+    { $set: { isActive: true } },
+  );
+};
 
 const findUserByEmailCaseInsensitive = (normalizedEmail: string) =>
   User.findOne({
@@ -63,16 +94,17 @@ const bootstrapSuperAdminFromEnv = async (
         httpStatus.CONFLICT,
       );
     }
-    const existingSuper = await Admin.findOne({
+    const existingActiveSuper = await Admin.findOne({
       userId: user._id,
       role: "SUPER_ADMIN",
       isDeleted: false,
+      isActive: true,
     }).lean();
-    if (existingSuper) {
+    if (existingActiveSuper) {
       return;
     }
-    const otherAdmin = await Admin.findOne({ userId: user._id, isDeleted: false }).lean();
-    if (otherAdmin) {
+    const blockingNonSuper = await findBlockingNonSuperAdmin(user._id);
+    if (blockingNonSuper) {
       throw new AppError(
         "Super admin bootstrap email is already linked to a non-super-admin account",
         httpStatus.CONFLICT,
@@ -120,21 +152,46 @@ const bootstrapSuperAdminFromEnv = async (
     throw new AppError("Super admin bootstrap failed", httpStatus.INTERNAL_SERVER_ERROR);
   }
 
-  const existingSuper = await Admin.findOne({
+  const existingActiveSuper = await Admin.findOne({
     userId: user._id,
     role: "SUPER_ADMIN",
     isDeleted: false,
+    isActive: true,
   }).lean();
-  if (existingSuper) {
+  if (existingActiveSuper) {
     return;
   }
 
-  const otherAdmin = await Admin.findOne({ userId: user._id, isDeleted: false }).lean();
-  if (otherAdmin) {
+  const blockingNonSuper = await findBlockingNonSuperAdmin(user._id);
+  if (blockingNonSuper) {
     throw new AppError(
       "Super admin bootstrap email is already linked to a non-super-admin account",
       httpStatus.CONFLICT,
     );
+  }
+
+  const inactiveSuper = await Admin.findOne({
+    userId: user._id,
+    role: "SUPER_ADMIN",
+    isDeleted: false,
+    isActive: false,
+  });
+  if (inactiveSuper) {
+    inactiveSuper.isActive = true;
+    await inactiveSuper.save();
+    return;
+  }
+
+  const deletedSuper = await Admin.findOne({
+    userId: user._id,
+    role: "SUPER_ADMIN",
+    isDeleted: true,
+  });
+  if (deletedSuper) {
+    deletedSuper.isDeleted = false;
+    deletedSuper.isActive = true;
+    await deletedSuper.save();
+    return;
   }
 
   const imgProfile = await Image.create({
@@ -143,6 +200,8 @@ const bootstrapSuperAdminFromEnv = async (
     url: "about:blank",
     r2_key: `system/bootstrap/profile/${randomUUID()}`,
     userId: user._id,
+    useCase: "USER",
+    insertedBy: "ADMIN",
   });
   const imgNid = await Image.create({
     size: 0,
@@ -150,6 +209,8 @@ const bootstrapSuperAdminFromEnv = async (
     url: "about:blank",
     r2_key: `system/bootstrap/nid/${randomUUID()}`,
     userId: user._id,
+    useCase: "USER",
+    insertedBy: "ADMIN",
   });
 
   try {
@@ -169,6 +230,19 @@ const bootstrapSuperAdminFromEnv = async (
     if (code !== 11000) {
       throw err;
     }
+  }
+
+  const superOk = await Admin.findOne({
+    userId: user._id,
+    role: "SUPER_ADMIN",
+    isDeleted: false,
+    isActive: true,
+  }).lean();
+  if (!superOk) {
+    throw new AppError(
+      "Super admin bootstrap failed: admin record missing after create",
+      httpStatus.INTERNAL_SERVER_ERROR,
+    );
   }
 };
 
@@ -324,43 +398,50 @@ const invalidSuperAdminCreds = () =>
   new AppError("Invalid super admin credentials", httpStatus.UNAUTHORIZED);
 
 /**
- * Super admin: verified ACTIVE user + Admin `role: SUPER_ADMIN`.
- * If none exists yet, `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` + matching body create User + Admin (bootstrap).
+ * Super admin login:
+ * 1. Look up whether any SUPER_ADMIN admin exists.
+ * 2. If none → require `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` to match the request, bootstrap User + Admin, issue tokens.
+ * 3. If at least one exists → verify request email/password against User + SUPER_ADMIN profile (env not used).
  */
 const loginSuperAdmin = async (email: string, password: string) => {
   const deny = invalidSuperAdminCreds;
 
+  const emailNorm = email.trim().toLowerCase();
   const envEmail = config.super_admin_email;
   const envPass = config.super_admin_password;
-  const emailNorm = email.trim().toLowerCase();
   const envConfigured = Boolean(envEmail && envPass);
 
-  if (envConfigured) {
-    const envMatches =
-      sha256Equal(emailNorm, envEmail.toLowerCase()) &&
-      sha256Equal(password, envPass);
+  const superAdminAlreadyInDb = await anySuperAdminExists();
 
-    if (!(await anySuperAdminExists())) {
-      if (!envMatches) {
-        throw deny();
-      }
-      await bootstrapSuperAdminFromEnv(envEmail.trim().toLowerCase(), password);
-
-      const bootUser = await findUserByEmailCaseInsensitive(emailNorm);
-      if (!bootUser?.isVerified || bootUser.status !== "ACTIVE") {
-        throw deny();
-      }
-      if (!(await assertSuperAdminProfile(bootUser._id))) {
-        throw deny();
-      }
-      if (!(await bcrypt.compare(password, bootUser.password))) {
-        throw deny();
-      }
-      return {
-        ...afterSuccessLogin(bootUser, undefined, "ADMIN"),
-        tier: "SUPER_ADMIN" as const,
-      };
+  if (!superAdminAlreadyInDb) {
+    if (!envConfigured) {
+      throw deny();
     }
+    const envMatches =
+      sha256Equal(emailNorm, envEmail) &&
+      sha256Equal(password, envPass);
+    if (!envMatches) {
+      throw deny();
+    }
+    await bootstrapSuperAdminFromEnv(envEmail, password);
+
+    const bootUser = await findUserByEmailCaseInsensitive(emailNorm);
+    if (!bootUser?.isVerified || bootUser.status !== "ACTIVE") {
+      throw deny();
+    }
+    if (!(await assertSuperAdminProfile(bootUser._id))) {
+      await reactivateInactiveSuperAdminIfNeeded(bootUser._id);
+    }
+    if (!(await assertSuperAdminProfile(bootUser._id))) {
+      throw deny();
+    }
+    if (!(await bcrypt.compare(password, bootUser.password))) {
+      throw deny();
+    }
+    return {
+      ...afterSuccessLogin(bootUser, undefined, "ADMIN"),
+      tier: "SUPER_ADMIN" as const,
+    };
   }
 
   const user = await findUserByEmailCaseInsensitive(emailNorm);
@@ -373,6 +454,9 @@ const loginSuperAdmin = async (email: string, password: string) => {
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
     throw deny();
+  }
+  if (!(await assertSuperAdminProfile(user._id))) {
+    await reactivateInactiveSuperAdminIfNeeded(user._id);
   }
   if (!(await assertSuperAdminProfile(user._id))) {
     throw deny();
