@@ -8,6 +8,7 @@ const defaultCorsOrigins = [
   'http://127.0.0.1:5173',
   'http://localhost:3001',
   'https://kargic.com',
+  'https://admin.kargic.com',
 ];
 
 const corsOriginsFromEnv = process.env.CORS_ORIGINS
