@@ -235,10 +235,21 @@ const getProductBySlugFromDB = async (slug: string) => {
     .populate("categoryId", "_id categoryName slug")
     .populate("productImages", "_id url name alt")
     .populate("seo.image", "_id url name alt")
+    .populate({
+      path: "tags",
+      select: "_id name slug",
+      match: { isDeleted: { $ne: true } },
+    })
     .lean();
 
   if (!product) {
     throw new AppError("Product not found", httpStatus.NOT_FOUND);
+  }
+
+  if (Array.isArray(product.tags)) {
+    product.tags = product.tags.filter(
+      (t): t is NonNullable<(typeof product.tags)[number]> => t != null,
+    );
   }
 
   return product;
