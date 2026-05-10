@@ -25,6 +25,17 @@ const getAllExporterProfiles = catchAsync(async (req: Request, res: Response) =>
   );
 });
 
+const getPublicExporterDetailByUserId = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params as { userId: string };
+  const result = await ExporterProfileService.getPublicExporterDetailByUserIdFromDB(userId);
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Exporter public profile retrieved successfully',
+    result,
+  );
+});
+
 const getExporterProfileById = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user?.userId;
   const result = await ExporterProfileService.getExporterProfileByIdFromDB(userId as string);
@@ -51,6 +62,7 @@ const deleteExporterProfile = catchAsync(async (req: Request, res: Response) => 
 export const ExporterProfileController = {
   createExporterProfile,
   getAllExporterProfiles,
+  getPublicExporterDetailByUserId,
   getExporterProfileById,
   updateExporterProfile,
   deleteExporterProfile,

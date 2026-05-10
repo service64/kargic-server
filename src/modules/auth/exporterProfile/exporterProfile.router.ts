@@ -3,6 +3,7 @@ import { ExporterProfileController } from "./exporterProfile.controller";
 import {
   createExporterProfileZodSchema,
   exporterProfileIdParamZodSchema,
+  exporterUserIdParamZodSchema,
   updateExporterProfileZodSchema,
 } from "./exporterProfile.zod";
 import validateRequest from "../../../middlewares/validateRequest";
@@ -24,6 +25,12 @@ router.get(
   "/profile",
   auth(USER_ROLES.EXPORTER,USER_ROLES.ADMIN),
   ExporterProfileController.getExporterProfileById,
+);
+
+router.get(
+  "/user/:userId",
+  validateRequest(exporterUserIdParamZodSchema),
+  ExporterProfileController.getPublicExporterDetailByUserId,
 );
 
 router.patch(

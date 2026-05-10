@@ -7,6 +7,7 @@ import { User } from '../user/user.model';
 import type { CompanyType, EmployeeCount } from '../../../type/common.type';
 import { generateSlug } from '../../../utils/generateSlug';
 import { IExporterProfile } from './exporterProfile.interface';
+import { Product } from '../../product/product.model';
 
 type CreatePayload = {
   userId: string;
@@ -83,6 +84,8 @@ const buildExporterProfileListQuery = (
 /** Public list DTO — only fields the storefront exporters directory consumes. */
 export type ExporterProfilePublicListItem = {
   _id: string;
+  /** Owner `User` id — use for public profile URL `/exporters/:userId`. */
+  ownerUserId: string;
   companyName: string;
   slug: string;
   companyType: string;
@@ -107,10 +110,14 @@ function toPublicExporterListRow(
 ): ExporterProfilePublicListItem {
   const uid = doc.userId;
   let user: { email?: string; phone?: string } = {};
+  let ownerUserId = '';
   if (uid && typeof uid === 'object' && !Array.isArray(uid)) {
     const o = uid as Record<string, unknown>;
+    if (o._id != null) ownerUserId = String(o._id);
     if (typeof o.email === 'string') user = { ...user, email: o.email };
     if (typeof o.phone === 'string') user = { ...user, phone: o.phone };
+  } else if (uid != null) {
+    ownerUserId = String(uid);
   }
 
   const createdAt = doc.createdAt;
@@ -123,6 +130,7 @@ function toPublicExporterListRow(
 
   return {
     _id: String(doc._id),
+    ownerUserId,
     companyName: String(doc.companyName ?? ''),
     slug: String(doc.slug ?? ''),
     companyType: String(doc.companyType ?? ''),
@@ -152,6 +160,156 @@ const getAllExporterProfilesFromDB = async (query: Record<string, unknown>) => {
     .lean();
   const data = (raw as Record<string, unknown>[]).map(toPublicExporterListRow);
   return { data, meta };
+};
+
+type PublicUserShape = {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  activeRole: string;
+  isVerified: boolean;
+};
+
+type PublicExporterProductRow = {
+  id: string;
+  slug: string;
+  title: string;
+  shortDescription?: string;
+  priceRange?: { min?: number; max?: number };
+  currency: string;
+  imageUrl: string | null;
+};
+
+function trimPublicUser(u: Record<string, unknown>): PublicUserShape {
+  const roles = u.roles;
+  const isExporter =
+    u.activeRole === 'EXPORTER' ||
+    (Array.isArray(roles) && roles.includes('EXPORTER'));
+  if (!isExporter) {
+    throw new AppError('Not an exporter account', httpStatus.NOT_FOUND);
+  }
+  if (u.status && u.status !== 'ACTIVE') {
+    throw new AppError('User not available', httpStatus.NOT_FOUND);
+  }
+  return {
+    _id: String(u._id),
+    name: String(u.name ?? ''),
+    email: String(u.email ?? ''),
+    phone: String(u.phone ?? ''),
+    activeRole: String(u.activeRole ?? ''),
+    isVerified: Boolean(u.isVerified),
+  };
+}
+
+function trimPublicProductRow(p: Record<string, unknown>): PublicExporterProductRow {
+  const imgs = p.productImages as unknown[] | undefined;
+  let imageUrl: string | null = null;
+  if (Array.isArray(imgs) && imgs.length > 0) {
+    const first = imgs[0];
+    if (first && typeof first === 'object' && first !== null) {
+      const url = (first as { url?: string }).url;
+      if (typeof url === 'string' && url.length > 0) {
+        imageUrl = url;
+      }
+    }
+  }
+  const pr = p.priceRange;
+  const priceRange =
+    pr && typeof pr === 'object' && !Array.isArray(pr)
+      ? {
+          min:
+            typeof (pr as { min?: unknown }).min === 'number'
+              ? (pr as { min: number }).min
+              : undefined,
+          max:
+            typeof (pr as { max?: unknown }).max === 'number'
+              ? (pr as { max: number }).max
+              : undefined,
+        }
+      : undefined;
+
+  return {
+    id: String(p._id),
+    slug: String(p.slug ?? ''),
+    title: String(p.productName ?? ''),
+    shortDescription:
+      typeof p.shortDescription === 'string' ? p.shortDescription : undefined,
+    priceRange:
+      priceRange &&
+      (priceRange.min !== undefined || priceRange.max !== undefined)
+        ? priceRange
+        : undefined,
+    currency: typeof p.currency === 'string' ? p.currency : 'USD',
+    imageUrl,
+  };
+}
+
+/** Public storefront: owner user + exporter profile + their active products (card fields). */
+const getPublicExporterDetailByUserIdFromDB = async (userId: string) => {
+  const oid = new Types.ObjectId(userId);
+
+  const doc = await ExporterProfile.findOne({ userId: oid })
+    .populate('userId', 'name email phone activeRole roles isVerified status age')
+    .populate('logoUrl', 'url alt')
+    .populate('banner0', 'url alt _id')
+    .populate('banner1', 'url alt _id')
+    .populate('banner2', 'url alt _id');
+
+  if (!doc) {
+    throw new AppError('Exporter profile not found', httpStatus.NOT_FOUND);
+  }
+
+  const o = doc.toObject() as unknown as Record<string, unknown> & {
+    banner0?: unknown;
+    banner1?: unknown;
+    banner2?: unknown;
+    bannerUrl?: unknown;
+    userId?: unknown;
+  };
+
+  const rawUser = o.userId;
+  if (!rawUser || typeof rawUser !== 'object' || Array.isArray(rawUser)) {
+    throw new AppError('User not found', httpStatus.NOT_FOUND);
+  }
+  const user = trimPublicUser(rawUser as Record<string, unknown>);
+
+  const legacy = o.bannerUrl;
+  const legacyArr = Array.isArray(legacy) ? legacy : null;
+  const s0 = o.banner0 ?? legacyArr?.[0];
+  const s1 = o.banner1 ?? legacyArr?.[1];
+  const s2 = o.banner2 ?? legacyArr?.[2];
+  const {
+    banner0: _b0,
+    banner1: _b1,
+    banner2: _b2,
+    bannerUrl: _legacyField,
+    userId: _uidEmbed,
+    ...exporterRest
+  } = o;
+
+  const exporter = {
+    ...exporterRest,
+    userId: String(userId),
+    bannerUrl: [s0 ?? null, s1 ?? null, s2 ?? null],
+  };
+
+  const productsRaw = await Product.find({ userId: oid, status: 'active' })
+    .select('productName slug shortDescription priceRange currency productImages')
+    .populate('productImages', 'url')
+    .sort({ updatedAt: -1 })
+    .limit(100)
+    .lean();
+
+  const products = (productsRaw as unknown as Record<string, unknown>[]).map(
+    trimPublicProductRow,
+  );
+
+  return {
+    user,
+    exporter,
+    products,
+  };
 };
 
 const getExporterProfileByIdFromDB = async (userId: string) => {
@@ -287,6 +445,7 @@ const deleteExporterProfileFromDB = async (id: string) => {
 export const ExporterProfileService = {
   createExporterProfileIntoDB,
   getAllExporterProfilesFromDB,
+  getPublicExporterDetailByUserIdFromDB,
   getExporterProfileByIdFromDB,
   updateExporterProfileInDB,
   deleteExporterProfileFromDB,
