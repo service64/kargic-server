@@ -13,8 +13,10 @@ const createExporterProfile = catchAsync(async (req: Request, res: Response) => 
   return sendResponse(res, httpStatus.CREATED, 'Exporter profile created successfully', result);
 });
 
-const getAllExporterProfiles = catchAsync(async (_req: Request, res: Response) => {
-  const result = await ExporterProfileService.getAllExporterProfilesFromDB();
+const getAllExporterProfiles = catchAsync(async (req: Request, res: Response) => {
+  const result = await ExporterProfileService.getAllExporterProfilesFromDB(
+    req.query as Record<string, unknown>,
+  );
   return sendResponse(
     res,
     httpStatus.OK,

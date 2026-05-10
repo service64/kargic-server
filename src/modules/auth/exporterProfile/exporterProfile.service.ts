@@ -1,6 +1,7 @@
 import httpStatus from 'http-status';
 import { Types } from 'mongoose';
 import AppError from '../../../errors/AppError';
+import QueryBuilder from '../../../builders/QueryBuilder';
 import { ExporterProfile } from './exporterProfile.model';
 import { User } from '../user/user.model';
 import type { CompanyType, EmployeeCount } from '../../../type/common.type';
@@ -66,10 +67,24 @@ const createExporterProfileIntoDB = async (payload: CreatePayload) => {
   return ExporterProfile.create(exporterData);
 };
 
-const getAllExporterProfilesFromDB = async () => {
-  return ExporterProfile.find()
+const buildExporterProfileListQuery = (
+  baseQuery: ReturnType<typeof ExporterProfile.find>,
+  query: Record<string, unknown>,
+) =>
+  new QueryBuilder(baseQuery, query)
+    .search(['companyName', 'slug', 'description', 'mainProducts'])
+    .filter()
+    .sort('-createdAt')
+    .fields()
+    .paginate({ defaultLimit: 10, maxLimit: 100 });
+
+const getAllExporterProfilesFromDB = async (query: Record<string, unknown>) => {
+  const listQuery = buildExporterProfileListQuery(ExporterProfile.find(), query);
+  const meta = await listQuery.countTotal();
+  const data = await listQuery.modelQuery
     .populate('userId', 'email phone role')
-    .sort({ createdAt: -1 });
+    .lean();
+  return { data, meta };
 };
 
 const getExporterProfileByIdFromDB = async (userId: string) => {
