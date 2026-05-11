@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+const objectIdString = z
+  .string()
+  .regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
+
 const signupActiveRoleEnum = z.enum(['IMPORTER', 'EXPORTER']);
 
 /** YYYY-MM-DD; stored on User as `age` (legacy name). */
@@ -101,16 +105,18 @@ const profileUpdateBodySchema = z
     phone: z.string().min(1).optional(),
     age: dateOfBirthSchema.optional(),
     activeRole: signupActiveRoleEnum.optional(),
+    profileImage: objectIdString.optional(),
   })
   .refine(
     (data) =>
       data.name !== undefined ||
       data.phone !== undefined ||
       data.age !== undefined ||
-      data.activeRole !== undefined,
+      data.activeRole !== undefined ||
+      data.profileImage !== undefined,
     {
       message:
-        'At least one of name, phone, age (date of birth YYYY-MM-DD), activeRole is required',
+        'At least one of name, phone, age (date of birth YYYY-MM-DD), activeRole, profileImage is required',
     },
   );
 
