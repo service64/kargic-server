@@ -10,6 +10,7 @@ import { CategoryRoutes } from './src/modules/category/category.router';
 import { ProductRoutes } from './src/modules/product/product.router';
 import { TagRoutes } from './src/modules/tag/tag.router';
 import { BrandRoutes } from './src/modules/brand/brand.router';
+import { ShippingAddressRoutes } from './src/modules/shippingAddress/shippingAddress.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -60,6 +61,7 @@ app.use('/api/v1/category', CategoryRoutes);
 app.use('/api/v1/product', ProductRoutes);
 app.use('/api/v1/tag', TagRoutes);
 app.use('/api/v1/brand', BrandRoutes);
+app.use('/api/v1/shipping-address', ShippingAddressRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------
