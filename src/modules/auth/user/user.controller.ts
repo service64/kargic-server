@@ -159,12 +159,13 @@ const softDeleteAccount = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
-  const { name, phone, age, activeRole } = req.body;
+  const { name, phone, age, activeRole, profileImage } = req.body;
   const result = await UserService.updateProfileIntoDB(req.user!.userId, {
     name,
     phone,
     age,
     activeRole,
+    profileImage,
   });
   return sendResponse(
     res,
