@@ -1,4 +1,4 @@
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 /** Platform persona; keep enums in sync with `user.model`. */
 export type ActiveRole = 'IMPORTER' | 'EXPORTER' | 'ADMIN';
@@ -17,6 +17,7 @@ export interface IUser {
   age: string;
   name: string;
   otp?: string;
+  profileImage?: Types.ObjectId;
   /** OTP emailed for managing login sessions (device list / revoke). */
   sessionMgmtOtp?: string;
   sessionMgmtOtpExpiresAt?: Date;

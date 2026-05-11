@@ -661,6 +661,8 @@ type UpdateProfilePayload = {
   /** YYYY-MM-DD date of birth (User document field `age`). */
   age?: string;
   activeRole?: Extract<ActiveRole, "IMPORTER" | "EXPORTER">;
+  /** Image document id (`ref: Image`). */
+  profileImage?: string;
 };
 
 const toPublicUser = (user: { toObject: () => Record<string, unknown> }) => {
@@ -708,6 +710,14 @@ const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload
     if (!user.roles.includes(payload.activeRole)) {
       user.roles = [...user.roles, payload.activeRole];
     }
+  }
+
+  if (payload.profileImage !== undefined) {
+    const img = await Image.findById(payload.profileImage).lean();
+    if (!img) {
+      throw new AppError("Image not found", httpStatus.BAD_REQUEST);
+    }
+    user.profileImage = new Types.ObjectId(payload.profileImage);
   }
 
   await user.save();
