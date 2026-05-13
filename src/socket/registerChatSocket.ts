@@ -28,6 +28,11 @@ const socketChatSendSchema = z.discriminatedUnion('type', [
     type: z.literal('order'),
     orderId: objectIdString,
   }),
+  z.object({
+    peerUserId: objectIdString,
+    type: z.literal('product'),
+    productId: objectIdString,
+  }),
 ]);
 
 const isActiveRole = (value: unknown): value is ActiveRole =>
@@ -114,6 +119,9 @@ export const registerChatSocket = (httpServer: HttpServer): Server => {
           ...(payload.type === 'text' ? { text: payload.text } : {}),
           ...(payload.type === 'image' ? { imageId: payload.imageId } : {}),
           ...(payload.type === 'order' ? { orderId: payload.orderId } : {}),
+          ...(payload.type === 'product'
+            ? { productId: payload.productId }
+            : {}),
         });
 
         io.to(`user:${payload.peerUserId}`).emit('chat:message', { message });

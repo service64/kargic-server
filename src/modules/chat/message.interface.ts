@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 
-export type ChatMessageType = 'text' | 'image' | 'order';
+export type ChatMessageType = 'text' | 'image' | 'order' | 'product';
 
 export interface IChatMessageDoc {
   conversationId: Types.ObjectId;
@@ -9,5 +9,6 @@ export interface IChatMessageDoc {
   text?: string;
   imageId?: Types.ObjectId;
   orderId?: Types.ObjectId;
+  productId?: Types.ObjectId;
   createdAt?: Date;
 }

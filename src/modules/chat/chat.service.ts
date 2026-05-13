@@ -4,6 +4,7 @@ import QueryBuilder from '../../builders/QueryBuilder';
 import AppError from '../../errors/AppError';
 import { Image } from '../media/image.model';
 import { OrderModel } from '../order/order.model';
+import { Product } from '../product/product.model';
 import type { ActiveRole } from '../auth/user/user.interface';
 import { User } from '../auth/user/user.model';
 import { UserBlockService } from '../userBlock/userBlock.service';
@@ -43,6 +44,7 @@ export type SendChatMessageInput = {
   text?: string;
   imageId?: string;
   orderId?: string;
+  productId?: string;
 };
 
 const attachImageUrlForClients = async (
@@ -158,6 +160,88 @@ const attachOrderPreviewToMessage = async (
   };
 };
 
+type LeanProductForPreview = {
+  _id: unknown;
+  productName?: string;
+  slug?: string;
+  productImages?: Array<{ url?: string } | null> | null;
+};
+
+function buildProductPreviewPayload(
+  product: LeanProductForPreview,
+): Record<string, unknown> {
+  let productImageUrl: string | null = null;
+  const imgs = product.productImages;
+  if (Array.isArray(imgs) && imgs.length > 0) {
+    const first = imgs[0];
+    if (first && typeof first === 'object' && 'url' in first) {
+      const u = (first as { url?: string }).url;
+      if (typeof u === 'string' && u.length > 0) productImageUrl = u;
+    }
+  }
+  return {
+    productId: String(product._id),
+    productName: product.productName ?? '',
+    slug: product.slug ?? '',
+    productImageUrl,
+  };
+}
+
+const attachProductPreviewToMessage = async (
+  msg: Record<string, unknown>,
+): Promise<Record<string, unknown>> => {
+  if (msg.type !== 'product' || msg.productId == null) {
+    return msg;
+  }
+  const product = await Product.findById(msg.productId)
+    .select('productName slug productImages')
+    .populate({ path: 'productImages', select: 'url' })
+    .lean();
+  if (!product) {
+    return { ...msg, productPreview: null };
+  }
+  return {
+    ...msg,
+    productPreview: buildProductPreviewPayload(product as LeanProductForPreview),
+  };
+};
+
+const enrichMessageListWithProductPreviews = async (
+  rows: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> => {
+  const productIds = [
+    ...new Set(
+      rows
+        .filter((m) => m.type === 'product' && m.productId)
+        .map((m) => String(m.productId)),
+    ),
+  ];
+  if (productIds.length === 0) {
+    return rows;
+  }
+  const pids = productIds.map((id) => toOid(id));
+  const products = await Product.find({ _id: { $in: pids } })
+    .select('productName slug productImages')
+    .populate({ path: 'productImages', select: 'url' })
+    .lean()
+    .exec();
+  const map = new Map(
+    products.map((p) => [
+      String(p._id),
+      buildProductPreviewPayload(p as LeanProductForPreview),
+    ]),
+  );
+  return rows.map((m) => {
+    if (m.type !== 'product' || m.productId == null) {
+      return m;
+    }
+    const preview = map.get(String(m.productId));
+    return preview
+      ? { ...m, productPreview: preview }
+      : { ...m, productPreview: null };
+  });
+};
+
 const enrichMessageListWithOrderPreviews = async (
   rows: Record<string, unknown>[],
 ): Promise<Record<string, unknown>[]> => {
@@ -226,6 +310,14 @@ const sendChatMessage = async (input: SendChatMessageInput) => {
     if (!order) {
       throw new AppError('Order not found', httpStatus.NOT_FOUND);
     }
+  } else if (type === 'product') {
+    if (!input.productId) {
+      throw new AppError('productId is required', httpStatus.BAD_REQUEST);
+    }
+    const product = await Product.findById(input.productId).lean();
+    if (!product) {
+      throw new AppError('Product not found', httpStatus.NOT_FOUND);
+    }
   }
 
   const conv = await getOrCreateConversation(senderId, peerUserId);
@@ -240,8 +332,10 @@ const sendChatMessage = async (input: SendChatMessageInput) => {
     doc.text = input.text!.trim();
   } else if (type === 'image') {
     doc.imageId = toOid(input.imageId!);
-  } else {
+  } else if (type === 'order') {
     doc.orderId = toOid(input.orderId!);
+  } else {
+    doc.productId = toOid(input.productId!);
   }
 
   const [saved] = await Promise.all([
@@ -255,6 +349,7 @@ const sendChatMessage = async (input: SendChatMessageInput) => {
   let plain = saved.toObject() as unknown as Record<string, unknown>;
   plain = await attachImageUrlForClients(plain);
   plain = await attachOrderPreviewToMessage(plain);
+  plain = await attachProductPreviewToMessage(plain);
   return plain;
 };
 
@@ -289,6 +384,7 @@ const listMessagesForPair = async (
     raw as unknown as Record<string, unknown>[],
   );
   data = await enrichMessageListWithOrderPreviews(data);
+  data = await enrichMessageListWithProductPreviews(data);
   return {
     data,
     meta: {

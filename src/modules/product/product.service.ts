@@ -537,7 +537,7 @@ const buildProductListQuery = (
     .filter(extraExcludeFields)
     .sort()
     .fields(
-      'productName hsCode categoryId priceRange productImages slug tags status isFeatured views rating totalReviews updatedAt',
+      'userId productName hsCode categoryId priceRange productImages slug tags status isFeatured views rating totalReviews updatedAt',
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 

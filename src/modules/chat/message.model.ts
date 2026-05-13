@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 import type { ChatMessageType, IChatMessageDoc } from './message.interface';
 
-const MESSAGE_TYPES: ChatMessageType[] = ['text', 'image', 'order'];
+const MESSAGE_TYPES: ChatMessageType[] = ['text', 'image', 'order', 'product'];
 
 const chatMessageSchema = new Schema<IChatMessageDoc>(
   {
@@ -16,6 +16,7 @@ const chatMessageSchema = new Schema<IChatMessageDoc>(
     text: { type: String, trim: true },
     imageId: { type: Schema.Types.ObjectId, ref: 'Image' },
     orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    productId: { type: Schema.Types.ObjectId, ref: 'Product' },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
