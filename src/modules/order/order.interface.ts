@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 
 export type OrderStatus =
+  | 'awaiting_exporter_approval'
   | 'pending'
   | 'paid'
   | 'processing'
@@ -47,4 +48,7 @@ export interface Order {
   status: OrderStatus;
   payment: OrderPayment;
   shippingAddress: OrderShippingAddressSnapshot;
+  /** Optional delivery window (e.g. set when exporter confirms / ships). */
+  deliveryMinAt?: Date;
+  deliveryMaxAt?: Date;
 }

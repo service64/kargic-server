@@ -77,6 +77,12 @@ const findUserByEmailCaseInsensitive = (normalizedEmail: string) =>
     $expr: { $eq: [{ $toLower: "$email" }, normalizedEmail] },
   }).select("+password");
 
+/** Same email match as login/super-admin, without loading the password hash. */
+const findUserByEmailCaseInsensitiveBasic = (normalizedEmail: string) =>
+  User.findOne({
+    $expr: { $eq: [{ $toLower: "$email" }, normalizedEmail] },
+  });
+
 /**
  * Creates verified ADMIN user (if missing), placeholder images, and SUPER_ADMIN admin row. Safe under concurrent first logins.
  * If the email already exists, the password must match that user (bcrypt) and the user must not already have a non-super Admin profile.
@@ -500,36 +506,55 @@ const logoutUser = async (
 
 const SESSION_MGMT_OTP_TTL_MS = 10 * 60 * 1000;
 
-const requestSessionManagementOtp = async (email: string) => {
-  const user = await User.findOne({ email });
+/** Same user row for OTP emails regardless of email casing in the request. */
+const assertUserEligibleForOtpEmail = async (email: string) => {
+  const emailNorm = email.trim().toLowerCase();
+  const user = await findUserByEmailCaseInsensitiveBasic(emailNorm);
   if (!user) {
     throw new AppError("User not found", httpStatus.NOT_FOUND);
   }
-  if (!user.isVerified) {
+  if (user.isVerified !== true) {
     throw new AppError("Account is not verified", httpStatus.FORBIDDEN);
   }
   if (user.status !== "ACTIVE") {
     throw new AppError("Account is not active", httpStatus.FORBIDDEN);
   }
+  return user;
+};
+
+const requestSessionManagementOtp = async (email: string) => {
+  const user = await assertUserEligibleForOtpEmail(email);
 
   const otp = generateOTP();
   user.sessionMgmtOtp = otp;
   user.sessionMgmtOtpExpiresAt = new Date(Date.now() + SESSION_MGMT_OTP_TTL_MS);
   await user.save();
 
-  await sendEmail(
-    user.email,
-    "Manage your login sessions",
-    `<p>Your session management OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-  );
+  try {
+    await sendEmail(
+      user.email,
+      "Manage your login sessions",
+      `<p>Your session management OTP is <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+    );
+  } catch {
+    await User.updateOne(
+      { _id: user._id },
+      { $unset: { sessionMgmtOtp: 1, sessionMgmtOtpExpiresAt: 1 } },
+    );
+    throw new AppError(
+      "Unable to send email. Check SMTP configuration.",
+      httpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
 
   return { sent: true as const };
 };
 
 const verifySessionManagementOtpAndListSessions = async (email: string, otp: string) => {
-  const user = await User.findOne({ email }).select(
-    "+sessionMgmtOtp +sessionMgmtOtpExpiresAt",
-  );
+  const emailNorm = email.trim().toLowerCase();
+  const user = await User.findOne({
+    $expr: { $eq: [{ $toLower: "$email" }, emailNorm] },
+  }).select("+sessionMgmtOtp +sessionMgmtOtpExpiresAt");
   if (!user) {
     throw new AppError("User not found", httpStatus.NOT_FOUND);
   }
@@ -563,37 +588,43 @@ const listSessionsForManagementFlow = async (userId: string) => {
 const PASSWORD_RESET_OTP_TTL_MS = 15 * 60 * 1000;
 
 const requestPasswordResetOtp = async (email: string) => {
-  const user = await User.findOne({ email });
-  if (!user || user.status !== "ACTIVE") {
-    return { sent: true as const };
-  }
+  const user = await assertUserEligibleForOtpEmail(email);
 
   const otp = generateOTP();
-  await User.updateOne(
-    { _id: user._id },
-    {
-      $set: {
-        passwordResetOtp: otp,
-        passwordResetOtpExpiresAt: new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MS),
-      },
-    },
-  );
+  user.passwordResetOtp = otp;
+  user.passwordResetOtpExpiresAt = new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MS);
+  await user.save();
 
-  await sendEmail(
-    user.email,
-    "Reset your password",
-    `<p>Your password reset OTP is <strong>${otp}</strong>. It expires in 15 minutes.</p>`,
-  );
+  try {
+    await sendEmail(
+      user.email,
+      "Reset your password",
+      `<p>Your password reset OTP is <strong>${otp}</strong>. It expires in 15 minutes.</p>`,
+    );
+  } catch {
+    await User.updateOne(
+      { _id: user._id },
+      { $unset: { passwordResetOtp: 1, passwordResetOtpExpiresAt: 1 } },
+    );
+    throw new AppError(
+      "Unable to send reset email. Check SMTP configuration.",
+      httpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
 
-  return { sent: true as const };
+  return {
+    sent: true as const,
+    ...(config.is_production ? {} : { devOtp: otp }),
+  };
 };
 
 const resetPasswordWithOtp = async (email: string, otp: string, newPassword: string) => {
-  const user = await User.findOne({ email }).select(
-    "+password +passwordResetOtp +passwordResetOtpExpiresAt",
-  );
+  const emailNorm = email.trim().toLowerCase();
+  const user = await User.findOne({
+    $expr: { $eq: [{ $toLower: "$email" }, emailNorm] },
+  }).select("+password +passwordResetOtp +passwordResetOtpExpiresAt");
 
-  if (!user || user.status !== "ACTIVE") {
+  if (!user || user.status !== "ACTIVE" || user.isVerified !== true) {
     throw new AppError("Invalid or expired OTP", httpStatus.BAD_REQUEST);
   }
   if (!user.passwordResetOtp || user.passwordResetOtp !== otp) {

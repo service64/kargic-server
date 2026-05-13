@@ -15,6 +15,26 @@ const createOrder = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.CREATED, 'Order created successfully', result);
 });
 
+const approveOrderByExporter = catchAsync(async (req: Request, res: Response) => {
+  const orderId = String(req.params.id);
+  const result = await OrderService.approveOrderByExporterInDB(
+    orderId,
+    req.user!.userId,
+  );
+  return sendResponse(res, httpStatus.OK, 'Order approved by exporter', result);
+});
+
+const rejectOrderByExporter = catchAsync(async (req: Request, res: Response) => {
+  const orderId = String(req.params.id);
+  const result = await OrderService.rejectOrderByExporterInDB(
+    orderId,
+    req.user!.userId,
+  );
+  return sendResponse(res, httpStatus.OK, 'Order rejected by exporter', result);
+});
+
 export const OrderController = {
   createOrder,
+  approveOrderByExporter,
+  rejectOrderByExporter,
 };

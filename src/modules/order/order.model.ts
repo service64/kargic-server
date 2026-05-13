@@ -2,6 +2,7 @@ import { Schema, model } from 'mongoose';
 import type { Order } from './order.interface';
 
 const ORDER_STATUSES: Order['status'][] = [
+  'awaiting_exporter_approval',
   'pending',
   'paid',
   'processing',
@@ -75,10 +76,12 @@ const orderSchema = new Schema<Order>(
     status: {
       type: String,
       enum: ORDER_STATUSES,
-      default: 'pending',
+      default: 'awaiting_exporter_approval',
     },
     payment: { type: paymentSchema, required: true },
     shippingAddress: { type: shippingAddressSchema, required: true },
+    deliveryMinAt: { type: Date },
+    deliveryMaxAt: { type: Date },
   },
   { timestamps: true },
 );

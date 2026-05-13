@@ -46,3 +46,9 @@ export const createOrderZodSchema = z
       });
     }
   });
+
+export const orderIdParamsZodSchema = z.object({
+  params: z.object({
+    id: objectIdString,
+  }),
+});

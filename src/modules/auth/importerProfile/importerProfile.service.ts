@@ -44,6 +44,74 @@ const getImporterProfileByIdFromDB = async (userId: string) => {
   return doc;
 };
 
+type PublicImporterUserShape = {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  activeRole: string;
+  isVerified: boolean;
+};
+
+function trimPublicImporterUser(u: Record<string, unknown>): PublicImporterUserShape {
+  const roles = u.roles;
+  const isImporter =
+    u.activeRole === 'IMPORTER' ||
+    (Array.isArray(roles) && roles.includes('IMPORTER'));
+  if (!isImporter) {
+    throw new AppError('Not an importer account', httpStatus.NOT_FOUND);
+  }
+  if (u.status && u.status !== 'ACTIVE') {
+    throw new AppError('User not available', httpStatus.NOT_FOUND);
+  }
+  return {
+    _id: String(u._id),
+    name: String(u.name ?? ''),
+    email: String(u.email ?? ''),
+    phone: String(u.phone ?? ''),
+    activeRole: String(u.activeRole ?? ''),
+    isVerified: Boolean(u.isVerified),
+  };
+}
+
+/** Public storefront: owner user + importer profile (no auth). */
+const getPublicImporterDetailByUserIdFromDB = async (userId: string) => {
+  const oid = new Types.ObjectId(userId);
+
+  const doc = await ImporterProfile.findOne({ userId: oid }).populate(
+    'userId',
+    'name email phone activeRole roles isVerified status',
+  );
+
+  if (!doc) {
+    throw new AppError('Importer profile not found', httpStatus.NOT_FOUND);
+  }
+
+  const o = doc.toObject() as unknown as Record<string, unknown> & {
+    userId?: unknown;
+  };
+  const rawUser = o.userId;
+  if (!rawUser || typeof rawUser !== 'object' || Array.isArray(rawUser)) {
+    throw new AppError('User not found', httpStatus.NOT_FOUND);
+  }
+  const user = trimPublicImporterUser(rawUser as Record<string, unknown>);
+
+  const createdAt = o.createdAt;
+  const importer = {
+    _id: String(o._id),
+    userId: String(userId),
+    companyName: String(o.companyName ?? ''),
+    importLicense: String(o.importLicense ?? ''),
+    businessType: String(o.businessType ?? ''),
+    country: String(o.country ?? ''),
+    ...(createdAt instanceof Date
+      ? { createdAt: createdAt.toISOString() }
+      : {}),
+  };
+
+  return { user, importer };
+};
+
 type UpdatePayload = Partial<
   Pick<
     IImporterProfile,
@@ -81,6 +149,7 @@ export const ImporterProfileService = {
   createImporterProfileIntoDB,
   getAllImporterProfilesFromDB,
   getImporterProfileByIdFromDB,
+  getPublicImporterDetailByUserIdFromDB,
   updateImporterProfileInDB,
   deleteImporterProfileFromDB,
 };
