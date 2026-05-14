@@ -34,6 +34,20 @@ const getProductBySlug = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Product retrieved successfully', result);
 });
 
+const getPublicMinimalProductsBySellerUserId = catchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.params as { userId: string };
+    const result =
+      await ProductService.getPublicMinimalProductsBySellerUserIdFromDB(userId);
+    return sendResponse(
+      res,
+      httpStatus.OK,
+      'Seller products retrieved successfully',
+      result,
+    );
+  },
+);
+
 const updateMyProduct = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const result = await ProductService.updateMyProductInDB(
@@ -60,6 +74,7 @@ export const ProductController = {
   getAllProducts,
   getMyProducts,
   getProductBySlug,
+  getPublicMinimalProductsBySellerUserId,
   updateMyProduct,
   deleteMyProduct,
 };

@@ -11,6 +11,9 @@ import { ProductRoutes } from './src/modules/product/product.router';
 import { TagRoutes } from './src/modules/tag/tag.router';
 import { BrandRoutes } from './src/modules/brand/brand.router';
 import { ShippingAddressRoutes } from './src/modules/shippingAddress/shippingAddress.router';
+import { OrderRoutes } from './src/modules/order/order.router';
+import { ChatRoutes } from './src/modules/chat/chat.router';
+import { UserBlockRoutes } from './src/modules/userBlock/userBlock.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -62,6 +65,9 @@ app.use('/api/v1/product', ProductRoutes);
 app.use('/api/v1/tag', TagRoutes);
 app.use('/api/v1/brand', BrandRoutes);
 app.use('/api/v1/shipping-address', ShippingAddressRoutes);
+app.use('/api/v1/order', OrderRoutes);
+app.use('/api/v1/chat/blocks', UserBlockRoutes);
+app.use('/api/v1/chat', ChatRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------

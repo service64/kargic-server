@@ -6,6 +6,7 @@ import { ProductController } from './product.controller';
 import {
   createProductZodSchema,
   productIdParamZodSchema,
+  productSellerUserIdParamZodSchema,
   productSlugParamZodSchema,
   updateProductZodSchema,
 } from './product.validation';
@@ -28,12 +29,17 @@ router.get(
   auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   ProductController.getMyProducts,
 );
+/** Active products for a seller: only title, image, priceRange, stock per item. */
+router.get(
+  '/user/:userId',
+  validateRequest(productSellerUserIdParamZodSchema),
+  ProductController.getPublicMinimalProductsBySellerUserId,
+);
 router.get(
   '/:slug',
   validateRequest(productSlugParamZodSchema),
   ProductController.getProductBySlug,
 );
-
 router.patch(
   '/:id',
   auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),

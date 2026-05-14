@@ -21,6 +21,13 @@ export const importerProfileIdParamZodSchema = z.object({
   query: z.any().optional(),
 });
 
+export const importerUserIdParamZodSchema = z.object({
+  params: z.object({
+    userId: objectIdString,
+  }),
+  query: z.any().optional(),
+});
+
 export const updateImporterProfileZodSchema = z.object({
   params: z.object({
     id: objectIdString,

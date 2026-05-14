@@ -11,6 +11,7 @@ import {
   DeleteObjectCommand,
 } from './r2.client';
 import { IImage, IUseCase } from './image.interface';
+import { UserStorageService } from '../userStorage/userStorage.service';
 
 const generateR2Key = (originalName: string): string => {
   const ext = originalName.split('.').pop() || 'bin';
@@ -57,6 +58,25 @@ const saveImageToDb = async (
   return doc.toObject();
 };
 
+const rollbackUploadedImage = async (image: IImage): Promise<void> => {
+  if (!image._id || !image.r2_key) {
+    return;
+  }
+  try {
+    const client = getR2Client();
+    const bucketName = getR2BucketName();
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: image.r2_key,
+      }),
+    );
+  } catch {
+    // best-effort — still remove DB row
+  }
+  await Image.findByIdAndDelete(image._id).exec();
+};
+
 const uploadImage = async (
   file: Express.Multer.File,
   alt: string | undefined,
@@ -85,7 +105,7 @@ const uploadImage = async (
   const url = `${bucketUrl}/${r2Key}`;
 
   await uploadToR2(file.buffer, r2Key, file.mimetype);
-  return saveImageToDb(
+  const created = await saveImageToDb(
     file.originalname,
     url,
     r2Key,
@@ -94,6 +114,17 @@ const uploadImage = async (
     useCase,
     userId,
   );
+
+  if (useCase === 'MESSAGE') {
+    try {
+      await UserStorageService.applyChatMediaStorageAfterUpload(userId, size);
+    } catch (err) {
+      await rollbackUploadedImage(created);
+      throw err;
+    }
+  }
+
+  return created;
 };
 
 const getAllImages = async (query: Record<string, unknown>, userId: string) => {

@@ -3,6 +3,7 @@ import { ImporterProfileController } from "./importerProfile.controller";
 import {
   createImporterProfileZodSchema,
   importerProfileIdParamZodSchema,
+  importerUserIdParamZodSchema,
   updateImporterProfileZodSchema,
 } from "./importerProfile.zod";
 import validateRequest from "../../../middlewares/validateRequest";
@@ -24,11 +25,16 @@ router.get(
   auth(USER_ROLES.ADMIN),
   ImporterProfileController.getAllImporterProfiles,
 );
-
 router.get(
   "/profile",
   auth(USER_ROLES.IMPORTER,USER_ROLES.ADMIN),
   ImporterProfileController.getImporterProfileById,
+);
+
+router.get(
+  "/user/:userId",
+  validateRequest(importerUserIdParamZodSchema),
+  ImporterProfileController.getPublicImporterDetailByUserId,
 );
 
 router.patch(

@@ -111,12 +111,7 @@ const listManagedSessions = catchAsync(async (req: Request, res: Response) => {
 const forgotPassword = catchAsync(async (req: Request, res: Response) => {
   const { email } = req.body;
   const result = await UserService.requestPasswordResetOtp(email);
-  return sendResponse(
-    res,
-    httpStatus.OK,
-    'If an account exists for this email, a reset code has been sent.',
-    result,
-  );
+  return sendResponse(res, httpStatus.OK, 'OTP sent to your email', result);
 });
 
 const resetPassword = catchAsync(async (req: Request, res: Response) => {

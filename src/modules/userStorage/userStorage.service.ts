@@ -88,8 +88,61 @@ const updateUserStorageByUserIdInDB = async (
   return doc;
 };
 
+/** `storage.used` / `storage.limit` on the model are treated as MB for chat media quota. */
+const MB = 1024 * 1024;
+
+const fileSizeBytesToTrackedMB = (fileSizeBytes: number) =>
+  Math.round((fileSizeBytes / MB) * 1e6) / 1e6;
+
+const ensureUserStorageRowForChat = async (userId: string) => {
+  await UserStorage.findOneAndUpdate(
+    { userId: toObjectId(userId) },
+    {
+      $setOnInsert: {
+        userId: toObjectId(userId),
+        package: 'FREE',
+        storage: { used: 0, limit: 50 },
+      },
+    },
+    { upsert: true },
+  );
+};
+
+/**
+ * After a chat image is stored in R2 + Image collection, atomically adds file size to `storage.used`.
+ * Throws if the user would exceed `storage.limit` (upgrade subscription / raise limit).
+ */
+const applyChatMediaStorageAfterUpload = async (
+  userId: string,
+  fileSizeBytes: number,
+): Promise<void> => {
+  const deltaMB = fileSizeBytesToTrackedMB(fileSizeBytes);
+  if (deltaMB <= 0) {
+    return;
+  }
+  await ensureUserStorageRowForChat(userId);
+  const updated = await UserStorage.findOneAndUpdate(
+    {
+      userId: toObjectId(userId),
+      $expr: {
+        $lte: [{ $add: ['$storage.used', deltaMB] }, '$storage.limit'],
+      },
+    },
+    { $inc: { 'storage.used': deltaMB } },
+    { returnDocument: 'after', runValidators: true },
+  ).exec();
+
+  if (!updated) {
+    throw new AppError(
+      'Chat media storage limit reached. Upgrade your subscription to increase storage.',
+      httpStatus.FORBIDDEN,
+    );
+  }
+};
+
 export const UserStorageService = {
   createUserStorageIntoDB,
   getUserStorageByUserIdFromDB,
   updateUserStorageByUserIdInDB,
+  applyChatMediaStorageAfterUpload,
 };
