@@ -15,26 +15,31 @@ const createOrder = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.CREATED, 'Order created successfully', result);
 });
 
-const approveOrderByExporter = catchAsync(async (req: Request, res: Response) => {
-  const orderId = String(req.params.id);
-  const result = await OrderService.approveOrderByExporterInDB(
-    orderId,
+/** Importer or exporter: body `{ status }` is the next workflow step (server validates role + order state). */
+const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.updateOrderStatusInDB(
+    String(req.params.id),
     req.user!.userId,
+    req.user!.activeRole,
+    req.body.status,
   );
-  return sendResponse(res, httpStatus.OK, 'Order approved by exporter', result);
+  return sendResponse(res, httpStatus.OK, 'Order status updated', result);
 });
 
-const rejectOrderByExporter = catchAsync(async (req: Request, res: Response) => {
-  const orderId = String(req.params.id);
-  const result = await OrderService.rejectOrderByExporterInDB(
-    orderId,
+const getMyOrders = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getOrdersForCurrentUserFromDB(
     req.user!.userId,
+    req.user!.activeRole,
+    req.query as Record<string, unknown>,
   );
-  return sendResponse(res, httpStatus.OK, 'Order rejected by exporter', result);
+  return sendResponse(res, httpStatus.OK, 'Orders fetched successfully', {
+    orders: result.data,
+    meta: result.meta,
+  });
 });
 
 export const OrderController = {
   createOrder,
-  approveOrderByExporter,
-  rejectOrderByExporter,
+  updateOrderStatus,
+  getMyOrders,
 };

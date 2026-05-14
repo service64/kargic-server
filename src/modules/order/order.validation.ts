@@ -47,8 +47,38 @@ export const createOrderZodSchema = z
     }
   });
 
-export const orderIdParamsZodSchema = z.object({
+const orderStatusEnum = z.enum([
+  'awaiting_exporter_approval',
+  'confirmed',
+  'processing',
+  'shipped',
+  'received',
+  'cheking',
+  'completed',
+  'cancelled',
+  'returned',
+]);
+
+/** PATCH `/:id/status` — body is the desired next status (validated against workflow server-side). */
+export const orderStatusTransitionZodSchema = z.object({
   params: z.object({
     id: objectIdString,
+  }),
+  body: z.object({
+    status: orderStatusEnum,
+  }),
+});
+
+/** GET `/` — pagination + filters (custom filters applied in service, not via QueryBuilder.filter). */
+export const getOrdersQueryZodSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    sort: z.string().trim().optional(),
+    fields: z.string().trim().optional(),
+    productId: objectIdString.optional(),
+    productName: z.string().trim().max(200).optional(),
+    userId: objectIdString.optional(),
+    userName: z.string().trim().max(200).optional(),
   }),
 });

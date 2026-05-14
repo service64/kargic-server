@@ -3,12 +3,14 @@ import type { Order } from './order.interface';
 
 const ORDER_STATUSES: Order['status'][] = [
   'awaiting_exporter_approval',
-  'pending',
-  'paid',
+  'confirmed',
   'processing',
   'shipped',
+  'received',
+  'cheking',
   'completed',
   'cancelled',
+  'returned',
 ];
 
 const PAYMENT_METHODS: Order['payment']['method'][] = [

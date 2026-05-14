@@ -2,12 +2,14 @@ import { Types } from 'mongoose';
 
 export type OrderStatus =
   | 'awaiting_exporter_approval'
-  | 'pending'
-  | 'paid'
+  | 'confirmed' 
   | 'processing'
   | 'shipped'
+  | 'received'
+  | 'cheking'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'returned';
 
 export type PaymentMethod = 'bkash' | 'nagad' | 'card' | 'cod';
 

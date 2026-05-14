@@ -4,10 +4,18 @@ import validateRequest from '../../middlewares/validateRequest';
 import { OrderController } from './order.controller';
 import {
   createOrderZodSchema,
-  orderIdParamsZodSchema,
+  getOrdersQueryZodSchema,
+  orderStatusTransitionZodSchema,
 } from './order.validation';
 
 const router = express.Router();
+
+router.get(
+  '/',
+  auth('IMPORTER', 'EXPORTER'),
+  validateRequest(getOrdersQueryZodSchema),
+  OrderController.getMyOrders,
+);
 
 router.post(
   '/create',
@@ -17,17 +25,10 @@ router.post(
 );
 
 router.patch(
-  '/:id/exporter-approve',
-  auth('EXPORTER'),
-  validateRequest(orderIdParamsZodSchema),
-  OrderController.approveOrderByExporter,
-);
-
-router.patch(
-  '/:id/exporter-reject',
-  auth('EXPORTER'),
-  validateRequest(orderIdParamsZodSchema),
-  OrderController.rejectOrderByExporter,
+  '/:id/status',
+  auth('IMPORTER', 'EXPORTER'),
+  validateRequest(orderStatusTransitionZodSchema),
+  OrderController.updateOrderStatus,
 );
 
 export const OrderRoutes = router;
