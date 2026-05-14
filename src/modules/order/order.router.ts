@@ -5,6 +5,7 @@ import { OrderController } from './order.controller';
 import {
   createOrderZodSchema,
   getOrdersQueryZodSchema,
+  orderDetailsParamsZodSchema,
   orderStatusTransitionZodSchema,
 } from './order.validation';
 
@@ -22,6 +23,13 @@ router.post(
   auth('IMPORTER'),
   validateRequest(createOrderZodSchema),
   OrderController.createOrder,
+);
+
+router.get(
+  '/:id',
+  auth('IMPORTER', 'EXPORTER'),
+  validateRequest(orderDetailsParamsZodSchema),
+  OrderController.getOrderById,
 );
 
 router.patch(

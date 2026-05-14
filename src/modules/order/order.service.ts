@@ -191,6 +191,28 @@ const assertExporterOwnsAllOrderProducts = async (
   }
 };
 
+/** Read-only: seller may view past orders even if a line product is inactive. */
+const assertExporterOwnsAllOrderProductsForView = async (
+  order: { items: Array<{ productId: Types.ObjectId }> },
+  exporterUserId: string,
+) => {
+  for (const item of order.items) {
+    const product = await Product.findById(item.productId).lean();
+    if (!product) {
+      throw new AppError(
+        "Product on order no longer exists",
+        httpStatus.NOT_FOUND,
+      );
+    }
+    if (String(product.userId) !== String(exporterUserId)) {
+      throw new AppError(
+        "You are not the seller for this order",
+        httpStatus.FORBIDDEN,
+      );
+    }
+  }
+};
+
 const assertImporterOwnsOrder = (
   order: { userId: Types.ObjectId },
   importerUserId: string,
@@ -611,8 +633,75 @@ const getOrdersForCurrentUserFromDB = async (
   return { data, meta };
 };
 
+/**
+ * Full order document for buyer or seller — `userId` from JWT must match buyer (importer)
+ * or own all line products (exporter). Deep-populates buyer, saved shipping ref, and products.
+ */
+const getOrderByIdForViewerFromDB = async (
+  orderId: string,
+  viewerUserId: string,
+  activeRole: ActiveRole,
+) => {
+  if (activeRole === "ADMIN") {
+    throw new AppError("Forbidden", httpStatus.FORBIDDEN);
+  }
+
+  const orderLean = await OrderModel.findById(orderId).lean();
+  if (!orderLean) {
+    throw new AppError("Order not found", httpStatus.NOT_FOUND);
+  }
+
+  if (activeRole === "IMPORTER") {
+    assertImporterOwnsOrder(orderLean, viewerUserId);
+  } else {
+    await assertExporterOwnsAllOrderProductsForView(orderLean, viewerUserId);
+  }
+
+  const doc = await OrderModel.findById(orderId)
+    .populate({
+      path: "userId",
+      select: "name email phone profileImage roles activeRole status",
+      populate: { path: "profileImage", select: "url alt" },
+    })
+    .populate({
+      path: "shippingAddressId",
+      select:
+        "fullName phone addressLine city state postalCode country isDefault createdAt updatedAt",
+    })
+    .populate({
+      path: "items.productId",
+      populate: [
+        { path: "categoryId", select: "categoryName slug" },
+        {
+          path: "productImages",
+          select: "url alt",
+        },
+        {
+          path: "brand",
+          select: "brandName slug image",
+          populate: { path: "image", select: "url alt" },
+        },
+        { path: "tags", select: "name slug description" },
+        {
+          path: "userId",
+          select: "name email phone profileImage",
+          populate: { path: "profileImage", select: "url alt" },
+        },
+        { path: "seo.image", select: "url alt" },
+      ],
+    })
+    .lean();
+
+  if (!doc) {
+    throw new AppError("Order not found", httpStatus.NOT_FOUND);
+  }
+
+  return doc;
+};
+
 export const OrderService = {
   createOrderIntoDB,
   updateOrderStatusInDB,
   getOrdersForCurrentUserFromDB,
+  getOrderByIdForViewerFromDB,
 };

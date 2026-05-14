@@ -38,8 +38,19 @@ const getMyOrders = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+/** Buyer or seller — `req.user.userId` must match order ownership (JWT). */
+const getOrderById = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getOrderByIdForViewerFromDB(
+    String(req.params.id),
+    req.user!.userId,
+    req.user!.activeRole,
+  );
+  return sendResponse(res, httpStatus.OK, 'Order retrieved successfully', result);
+});
+
 export const OrderController = {
   createOrder,
   updateOrderStatus,
   getMyOrders,
+  getOrderById,
 };

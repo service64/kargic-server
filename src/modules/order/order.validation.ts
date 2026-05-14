@@ -69,6 +69,13 @@ export const orderStatusTransitionZodSchema = z.object({
   }),
 });
 
+/** GET `/:id` — order details (params only). */
+export const orderDetailsParamsZodSchema = z.object({
+  params: z.object({
+    id: objectIdString,
+  }),
+});
+
 /** GET `/` — pagination + filters (custom filters applied in service, not via QueryBuilder.filter). */
 export const getOrdersQueryZodSchema = z.object({
   query: z.object({
