@@ -6,7 +6,7 @@ import type { ActiveRole } from "../auth/user/user.interface";
 import { User } from "../auth/user/user.model";
 import { Product } from "../product/product.model";
 import { ShippingAddressModel } from "../shippingAddress/shippingAddress.model";
-import type { Order, OrderStatus } from "./order.interface";
+import type { Order, OrderCardDto, OrderStatus } from "./order.interface";
 import { OrderModel } from "./order.model";
 
 type CreateOrderBodyItem = {
@@ -370,13 +370,128 @@ const pickOrderListPaginationQuery = (
   ...(query.fields !== undefined && { fields: query.fields }),
 });
 
+const extractFirstProductImageUrl = (
+  prod: Record<string, unknown> | null,
+): string | null => {
+  if (!prod) return null;
+  const imgs = prod.productImages;
+  if (!Array.isArray(imgs) || imgs.length === 0) return null;
+  const first = imgs[0];
+  if (first && typeof first === "object" && first !== null && "url" in first) {
+    const u = (first as { url: unknown }).url;
+    return typeof u === "string" && u.length > 0 ? u : null;
+  }
+  return null;
+};
+
+const extractProductTitle = (
+  prod: Record<string, unknown> | null,
+): string => {
+  if (!prod) return "";
+  const n = prod.productName;
+  return typeof n === "string" ? n.trim() : "";
+};
+
+const shapeOrdersToCardDto = async (
+  orders: Record<string, unknown>[],
+): Promise<OrderCardDto[]> => {
+  const sellerIds = new Set<string>();
+
+  type Normalized = {
+    raw: Record<string, unknown>;
+    prod: Record<string, unknown> | null;
+    sellerId?: string;
+  };
+
+  const normalized: Normalized[] = [];
+
+  for (const o of orders) {
+    const items = (o.items as unknown[]) ?? [];
+    const firstItem = items[0];
+    let prod: Record<string, unknown> | null = null;
+    if (
+      firstItem &&
+      typeof firstItem === "object" &&
+      firstItem !== null &&
+      "productId" in firstItem
+    ) {
+      const p = (firstItem as { productId: unknown }).productId;
+      if (p && typeof p === "object" && p !== null) {
+        prod = p as Record<string, unknown>;
+      }
+    }
+
+    let sellerId: string | undefined;
+    if (prod?.userId !== undefined && prod?.userId !== null) {
+      const uid = prod.userId;
+      sellerId =
+        typeof uid === "object" && uid !== null && "_id" in (uid as object)
+          ? String((uid as { _id: Types.ObjectId })._id)
+          : String(uid);
+      if (sellerId && Types.ObjectId.isValid(sellerId)) {
+        sellerIds.add(sellerId);
+      }
+    }
+
+    normalized.push({ raw: o, prod, sellerId });
+  }
+
+  const sellers =
+    sellerIds.size > 0
+      ? await User.find({
+          _id: {
+            $in: [...sellerIds].map((id) => new Types.ObjectId(id)),
+          },
+        })
+          .select("name")
+          .lean()
+      : [];
+
+  const sellerNameById = new Map<string, string>(
+    sellers.map((s) => [String(s._id), String(s.name ?? "")]),
+  );
+
+  return normalized.map(({ raw, prod, sellerId }) => {
+    const buyer = raw.userId as Record<string, unknown> | undefined;
+    const buyerName =
+      buyer && typeof buyer.name === "string" ? buyer.name : "";
+
+    const created = raw.createdAt;
+    let orderPlacedAt = "";
+    if (created instanceof Date) {
+      orderPlacedAt = created.toISOString();
+    } else if (typeof created === "string") {
+      orderPlacedAt = created;
+    }
+
+    const totalRaw = raw.totalAmount;
+    const price =
+      typeof totalRaw === "number"
+        ? totalRaw
+        : Number(totalRaw) || 0;
+
+    const status = raw.status as OrderCardDto["status"];
+
+    return {
+      orderId: String(raw._id),
+      status,
+      productTitle: extractProductTitle(prod),
+      productImageUrl: extractFirstProductImageUrl(prod),
+      price,
+      orderPlacedAt,
+      fromName: sellerId ? sellerNameById.get(sellerId) ?? "" : "",
+      toName: buyerName,
+    };
+  });
+};
+
 const emptyOrdersPageMeta = async (query: Record<string, unknown>) => {
   const paginationQuery = pickOrderListPaginationQuery(query);
   const qb = new QueryBuilder(OrderModel.find({ _id: null }), paginationQuery)
     .sort()
     .paginate({ defaultLimit: 10, maxLimit: 100 });
   const meta = await qb.countTotal();
-  return { data: [] as Record<string, unknown>[], meta };
+  return { data: [] as OrderCardDto[], meta };
 };
 
 export type OrderListMeta = Awaited<
@@ -388,7 +503,7 @@ const getOrdersForCurrentUserFromDB = async (
   viewerUserId: string,
   activeRole: ActiveRole,
   query: Record<string, unknown>,
-): Promise<{ data: Record<string, unknown>[]; meta: OrderListMeta }> => {
+): Promise<{ data: OrderCardDto[]; meta: OrderListMeta }> => {
   if (activeRole === "ADMIN") {
     throw new AppError("Forbidden", httpStatus.FORBIDDEN);
   }
@@ -400,6 +515,7 @@ const getOrdersForCurrentUserFromDB = async (
   const productNameFilter = parseOptionalTrimmedString(query.productName);
   const userIdFilter = parseOptionalObjectId(query.userId);
   const userNameFilter = parseOptionalTrimmedString(query.userName);
+  const orderIdFilter = parseOptionalObjectId(query.orderId);
 
   const andParts: Record<string, unknown>[] = [];
 
@@ -413,6 +529,10 @@ const getOrdersForCurrentUserFromDB = async (
       return emptyOrdersPageMeta(query);
     }
     andParts.push({ "items.productId": { $in: exporterProductIds } });
+  }
+
+  if (orderIdFilter) {
+    andParts.push({ _id: orderIdFilter });
   }
 
   if (productIdFilter) {
@@ -474,10 +594,19 @@ const getOrdersForCurrentUserFromDB = async (
   const orderQB = new QueryBuilder(OrderModel.find(matchFilter), paginationQuery)
     .sort()
     .paginate({ defaultLimit: 10, maxLimit: 100 })
-    .fields("-__v");
+    .fields("_id status totalAmount createdAt userId items.productId");
 
   const meta = await orderQB.countTotal();
-  const data = (await orderQB.modelQuery.lean()) as Record<string, unknown>[];
+  const rawRows = (await orderQB.modelQuery
+    .populate({ path: "userId", select: "name" })
+    .populate({
+      path: "items.productId",
+      select: "productName userId productImages",
+      populate: { path: "productImages", select: "url" },
+    })
+    .lean()) as Record<string, unknown>[];
+
+  const data = await shapeOrdersToCardDto(rawRows);
 
   return { data, meta };
 };

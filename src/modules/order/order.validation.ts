@@ -80,5 +80,7 @@ export const getOrdersQueryZodSchema = z.object({
     productName: z.string().trim().max(200).optional(),
     userId: objectIdString.optional(),
     userName: z.string().trim().max(200).optional(),
+    /** Exact match on Order `_id`. */
+    orderId: objectIdString.optional(),
   }),
 });

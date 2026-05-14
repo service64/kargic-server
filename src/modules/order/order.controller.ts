@@ -33,7 +33,7 @@ const getMyOrders = catchAsync(async (req: Request, res: Response) => {
     req.query as Record<string, unknown>,
   );
   return sendResponse(res, httpStatus.OK, 'Orders fetched successfully', {
-    orders: result.data,
+    data: result.data,
     meta: result.meta,
   });
 });

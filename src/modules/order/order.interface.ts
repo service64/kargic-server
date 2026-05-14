@@ -11,6 +11,22 @@ export type OrderStatus =
   | 'cancelled'
   | 'returned';
 
+/** Minimal row for `GET /order` — no extra fields are returned. */
+export type OrderCardDto = {
+  orderId: string;
+  status: OrderStatus;
+  /** First line item product display name. */
+  productTitle: string;
+  productImageUrl: string | null;
+  /** Order total at checkout. */
+  price: number;
+  orderPlacedAt: string;
+  /** Exporter / seller display name. */
+  fromName: string;
+  /** Importer / buyer display name. */
+  toName: string;
+};
+
 export type PaymentMethod = 'bkash' | 'nagad' | 'card' | 'cod';
 
 export interface OrderPayment {
