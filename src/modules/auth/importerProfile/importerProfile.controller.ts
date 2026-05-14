@@ -49,6 +49,20 @@ const getImporterProfileById = catchAsync(
   },
 );
 
+const getPublicImporterDetailByUserId = catchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.params as { userId: string };
+    const result =
+      await ImporterProfileService.getPublicImporterDetailByUserIdFromDB(userId);
+    return sendResponse(
+      res,
+      httpStatus.OK,
+      'Importer public profile retrieved successfully',
+      result,
+    );
+  },
+);
+
 const updateImporterProfile = catchAsync(
   async (req: Request, res: Response) => {
     const { id } = req.params as { id: string };
@@ -82,6 +96,7 @@ export const ImporterProfileController = {
   createImporterProfile,
   getAllImporterProfiles,
   getImporterProfileById,
+  getPublicImporterDetailByUserId,
   updateImporterProfile,
   deleteImporterProfile,
 };

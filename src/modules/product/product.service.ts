@@ -1,20 +1,20 @@
-import httpStatus from "http-status";
-import { Types } from "mongoose";
-import AppError from "../../errors/AppError";
-import { Category } from "../category/category.model";
-import { Image } from "../media/image.model";
-import { IProduct } from "./product.interface";
-import { Product } from "./product.model";
-import { ExporterProfile } from "../auth/exporterProfile/exporterProfile.model";
-import { User } from "../auth/user/user.model";
-import { Brand } from "../brand/brand.model";
-import QueryBuilder from "../../builders/QueryBuilder";
-import { ActiveRole } from "../auth/user/user.interface";
+import httpStatus from 'http-status';
+import { Types } from 'mongoose';
+import AppError from '../../errors/AppError';
+import { Category } from '../category/category.model';
+import { Image } from '../media/image.model';
+import { IProduct } from './product.interface';
+import { Product } from './product.model';
+import { ExporterProfile } from '../auth/exporterProfile/exporterProfile.model';
+import { User } from '../auth/user/user.model';
+import { Brand } from '../brand/brand.model';
+import QueryBuilder from '../../builders/QueryBuilder';
+import { ActiveRole } from '../auth/user/user.interface';
 import {
   DeleteObjectCommand,
   getR2BucketName,
   getR2Client,
-} from "../media/r2.client";
+} from '../media/r2.client';
 
 type CreatePayload = {
   userId: string;
@@ -35,7 +35,7 @@ type CreatePayload = {
   dimensions?: { length: number; width: number; height: number };
   originCountry?: string;
   tags?: string[];
-  status?: "draft" | "active" | "inactive";
+  status?: 'draft' | 'active' | 'inactive';
   isFeatured?: boolean;
   seo?: {
     title?: string;
@@ -49,8 +49,8 @@ const makeSlug = (productName: string, option: string) => {
   const base = `${productName}-${option}`
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
   return `${base}`;
 };
 
@@ -67,8 +67,7 @@ async function allocateUniqueProductSlug(
 ): Promise<string> {
   const trimmed = baseSlug.trim().slice(0, MAX_PRODUCT_SLUG_LEN);
   const root =
-    trimmed ||
-    `product-${randomSlugSuffix()}`.slice(0, MAX_PRODUCT_SLUG_LEN);
+    trimmed || `product-${randomSlugSuffix()}`.slice(0, MAX_PRODUCT_SLUG_LEN);
 
   let candidate = root;
   for (let i = 0; i < 40; i++) {
@@ -85,7 +84,7 @@ async function allocateUniqueProductSlug(
   }
 
   throw new AppError(
-    "Could not generate a unique product slug",
+    'Could not generate a unique product slug',
     httpStatus.INTERNAL_SERVER_ERROR,
   );
 }
@@ -96,7 +95,7 @@ const assertCategoryExists = async (categoryId: string) => {
     isDeleted: false,
   }).lean();
   if (!category) {
-    throw new AppError("Category not found", httpStatus.NOT_FOUND);
+    throw new AppError('Category not found', httpStatus.NOT_FOUND);
   }
 };
 
@@ -108,7 +107,7 @@ const assertImagesExist = async (imageIds: string[]) => {
   const found = await Image.countDocuments({ _id: { $in: objectIds } });
   if (found !== objectIds.length) {
     throw new AppError(
-      "One or more product images not found",
+      'One or more product images not found',
       httpStatus.BAD_REQUEST,
     );
   }
@@ -116,29 +115,30 @@ const assertImagesExist = async (imageIds: string[]) => {
 
 const exporterExists = async (userId: string) => {
   const user = await User.findById(new Types.ObjectId(userId));
-  if (!user || user.activeRole !== "EXPORTER" || user?.status !== "ACTIVE") {
-    throw new AppError("User not found or user is diactivated or deleted || contact admin", httpStatus.NOT_FOUND);
-  } 
+  if (!user || user.activeRole !== 'EXPORTER' || user?.status !== 'ACTIVE') {
+    throw new AppError(
+      'User not found or user is diactivated or deleted || contact admin',
+      httpStatus.NOT_FOUND,
+    );
+  }
   const exporter = await ExporterProfile.findOne({
     userId: new Types.ObjectId(userId),
   })
-    .select("companyName")
+    .select('companyName')
     .lean();
   if (!exporter) {
-    throw new AppError("Exporter not found", httpStatus.BAD_REQUEST);
+    throw new AppError('Exporter not found', httpStatus.BAD_REQUEST);
   }
 
   return exporter;
 };
 
 /** One brand per exporter `userId`; used to set `product.brand` automatically. */
-const resolveBrandIdForOwner = async (
-  ownerUserId: string | Types.ObjectId,
-) => {
+const resolveBrandIdForOwner = async (ownerUserId: string | Types.ObjectId) => {
   const doc = await Brand.findOne({
     userId: new Types.ObjectId(String(ownerUserId)),
   })
-    .select("_id")
+    .select('_id')
     .lean();
   return doc?._id;
 };
@@ -165,7 +165,7 @@ const createProductIntoDB = async (payload: CreatePayload) => {
 
   if (payload.moq) productData.moq = payload.moq;
   if (payload.priceRange) productData.priceRange = payload.priceRange;
-  productData.currency = "USD";
+  productData.currency = 'USD';
   if (payload.productionLeadTime)
     productData.productionLeadTime = payload.productionLeadTime;
   if (payload.supplyCapacity)
@@ -189,7 +189,7 @@ const createProductIntoDB = async (payload: CreatePayload) => {
   if (payload.isFeatured !== undefined)
     productData.isFeatured = payload.isFeatured;
   if (payload.seo) {
-    const seoData: NonNullable<IProduct["seo"]> = {};
+    const seoData: NonNullable<IProduct['seo']> = {};
     if (payload.seo.title !== undefined) seoData.title = payload.seo.title;
     if (payload.seo.description !== undefined)
       seoData.description = payload.seo.description;
@@ -209,21 +209,21 @@ const assertManagePermission = (
   userId: string,
   activeRole: ActiveRole,
 ) => {
-  if (activeRole === "ADMIN") return;
+  if (activeRole === 'ADMIN') return;
   if (String(ownerId) !== userId) {
-    throw new AppError("Forbidden", httpStatus.FORBIDDEN);
+    throw new AppError('Forbidden', httpStatus.FORBIDDEN);
   }
 };
 
 const getProductByIdFromDB = async (id: string) => {
   const product = await Product.findById(id)
-    .populate("categoryId", "_id categoryName slug")
-    .populate("productImages", "_id url name alt")
-    .populate("seo.image", "_id url name alt")
+    .populate('categoryId', '_id categoryName slug')
+    .populate('productImages', '_id url name alt')
+    .populate('seo.image', '_id url name alt')
     .lean();
 
   if (!product) {
-    throw new AppError("Product not found", httpStatus.NOT_FOUND);
+    throw new AppError('Product not found', httpStatus.NOT_FOUND);
   }
 
   return product;
@@ -232,18 +232,18 @@ const getProductByIdFromDB = async (id: string) => {
 const getProductBySlugFromDB = async (slug: string) => {
   const normalized = slug.trim().toLowerCase();
   const product = await Product.findOne({ slug: normalized })
-    .populate("categoryId", "_id categoryName slug")
-    .populate("productImages", "_id url name alt")
-    .populate("seo.image", "_id url name alt")
+    .populate('categoryId', '_id categoryName slug')
+    .populate('productImages', '_id url name alt')
+    .populate('seo.image', '_id url name alt')
     .populate({
-      path: "tags",
-      select: "_id name slug",
+      path: 'tags',
+      select: '_id name slug',
       match: { isDeleted: { $ne: true } },
     })
     .lean();
 
   if (!product) {
-    throw new AppError("Product not found", httpStatus.NOT_FOUND);
+    throw new AppError('Product not found', httpStatus.NOT_FOUND);
   }
 
   if (Array.isArray(product.tags)) {
@@ -263,12 +263,12 @@ const updateMyProductInDB = async (
 ) => {
   const product = await Product.findById(id);
   if (!product) {
-    throw new AppError("Product not found", httpStatus.NOT_FOUND);
+    throw new AppError('Product not found', httpStatus.NOT_FOUND);
   }
 
   assertManagePermission(product.userId, userId, activeRole);
 
-  if (typeof body.categoryId === "string") {
+  if (typeof body.categoryId === 'string') {
     await assertCategoryExists(body.categoryId);
     product.categoryId = new Types.ObjectId(body.categoryId);
   }
@@ -293,56 +293,63 @@ const updateMyProductInDB = async (
   }
 
   if (body.moq === null) product.moq = undefined;
-  else if (typeof body.moq === "string") product.moq = body.moq;
+  else if (typeof body.moq === 'string') product.moq = body.moq;
 
   if (body.productionLeadTime === null) product.productionLeadTime = undefined;
-  else if (typeof body.productionLeadTime === "string") {
+  else if (typeof body.productionLeadTime === 'string') {
     product.productionLeadTime = body.productionLeadTime;
   }
 
   if (body.supplyCapacity === null) product.supplyCapacity = undefined;
-  else if (typeof body.supplyCapacity === "string") {
+  else if (typeof body.supplyCapacity === 'string') {
     product.supplyCapacity = body.supplyCapacity;
   }
 
   if (body.description === null) product.description = undefined;
-  else if (typeof body.description === "string") product.description = body.description;
+  else if (typeof body.description === 'string')
+    product.description = body.description;
 
   if (body.shortDescription === null) product.shortDescription = undefined;
-  else if (typeof body.shortDescription === "string") {
+  else if (typeof body.shortDescription === 'string') {
     product.shortDescription = body.shortDescription;
   }
 
   if (Array.isArray(body.specifications)) {
-    product.specifications = body.specifications as IProduct["specifications"];
+    product.specifications = body.specifications as IProduct['specifications'];
   }
-  if (typeof body.stock === "number") product.stock = body.stock;
+  if (typeof body.stock === 'number') product.stock = body.stock;
   if (body.unit === null) product.unit = undefined;
-  else if (typeof body.unit === "string") product.unit = body.unit;
-  if (typeof body.weight === "number") product.weight = body.weight;
-  if (body.dimensions && typeof body.dimensions === "object") {
-    product.dimensions = body.dimensions as IProduct["dimensions"];
+  else if (typeof body.unit === 'string') product.unit = body.unit;
+  if (typeof body.weight === 'number') product.weight = body.weight;
+  if (body.dimensions && typeof body.dimensions === 'object') {
+    product.dimensions = body.dimensions as IProduct['dimensions'];
   }
   if (body.originCountry === null) product.originCountry = undefined;
-  else if (typeof body.originCountry === "string") product.originCountry = body.originCountry;
+  else if (typeof body.originCountry === 'string')
+    product.originCountry = body.originCountry;
   if (Array.isArray(body.tags)) {
-    product.tags = (body.tags as string[]).map((tagId) => new Types.ObjectId(tagId));
+    product.tags = (body.tags as string[]).map(
+      (tagId) => new Types.ObjectId(tagId),
+    );
   }
-  if (typeof body.status === "string") product.status = body.status as IProduct["status"];
-  if (typeof body.isFeatured === "boolean") product.isFeatured = body.isFeatured;
-  if (body.priceRange && typeof body.priceRange === "object") {
-    product.priceRange = body.priceRange as IProduct["priceRange"];
+  if (typeof body.status === 'string')
+    product.status = body.status as IProduct['status'];
+  if (typeof body.isFeatured === 'boolean')
+    product.isFeatured = body.isFeatured;
+  if (body.priceRange && typeof body.priceRange === 'object') {
+    product.priceRange = body.priceRange as IProduct['priceRange'];
   }
 
-  if (body.seo && typeof body.seo === "object") {
+  if (body.seo && typeof body.seo === 'object') {
     const seoInput = body.seo as Record<string, unknown>;
     const seoCurrent = product.seo ?? {};
 
     if (seoInput.title === null) seoCurrent.title = undefined;
-    else if (typeof seoInput.title === "string") seoCurrent.title = seoInput.title;
+    else if (typeof seoInput.title === 'string')
+      seoCurrent.title = seoInput.title;
 
     if (seoInput.description === null) seoCurrent.description = undefined;
-    else if (typeof seoInput.description === "string") {
+    else if (typeof seoInput.description === 'string') {
       seoCurrent.description = seoInput.description;
     }
 
@@ -352,7 +359,7 @@ const updateMyProductInDB = async (
 
     if (seoInput.image === null) {
       seoCurrent.image = undefined;
-    } else if (typeof seoInput.image === "string") {
+    } else if (typeof seoInput.image === 'string') {
       await assertImagesExist([seoInput.image]);
       seoCurrent.image = new Types.ObjectId(seoInput.image);
     }
@@ -376,7 +383,7 @@ const deleteMyProductFromDB = async (
 ) => {
   const product = await Product.findById(id);
   if (!product) {
-    throw new AppError("Product not found", httpStatus.NOT_FOUND);
+    throw new AppError('Product not found', httpStatus.NOT_FOUND);
   }
 
   assertManagePermission(product.userId, userId, activeRole);
@@ -397,7 +404,7 @@ const deleteMyProductFromDB = async (
   for (const imageId of relatedImageIds) {
     const imageObjectId = new Types.ObjectId(imageId);
     const stillUsedInProducts = await Product.exists({
-      $or: [{ productImages: imageObjectId }, { "seo.image": imageObjectId }],
+      $or: [{ productImages: imageObjectId }, { 'seo.image': imageObjectId }],
     });
 
     if (stillUsedInProducts) continue;
@@ -431,9 +438,10 @@ const shapeProductListData = (
       _id?: Types.ObjectId;
       updatedAt?: Date;
     };
-    const id = raw._id ? String(raw._id) : "";
+    const id = raw._id ? String(raw._id) : '';
 
     const productObj = product as {
+      userId?: Types.ObjectId;
       productName?: string;
       hsCode?: string;
       categoryId?:
@@ -445,7 +453,7 @@ const shapeProductListData = (
       >;
       slug?: string;
       tags?: Array<string | Types.ObjectId | { _id?: Types.ObjectId }>;
-      status?: "draft" | "active" | "inactive";
+      status?: 'draft' | 'active' | 'inactive';
       isFeatured?: boolean;
       views?: number;
       rating?: number;
@@ -456,27 +464,27 @@ const shapeProductListData = (
     const populatedImages = productObj.productImages;
 
     const categoryId = populatedCategory
-      ? typeof populatedCategory === "object" && "_id" in populatedCategory
+      ? typeof populatedCategory === 'object' && '_id' in populatedCategory
         ? String(populatedCategory._id)
         : String(populatedCategory)
-      : "";
+      : '';
 
     const categoryName =
       populatedCategory &&
-      typeof populatedCategory === "object" &&
-      "categoryName" in populatedCategory &&
-      typeof populatedCategory.categoryName === "string"
+      typeof populatedCategory === 'object' &&
+      'categoryName' in populatedCategory &&
+      typeof populatedCategory.categoryName === 'string'
         ? populatedCategory.categoryName
-        : "";
+        : '';
 
     const productImages = Array.isArray(populatedImages)
       ? populatedImages
           .map((image) => {
-            if (!image || typeof image !== "object" || !("url" in image)) {
+            if (!image || typeof image !== 'object' || !('url' in image)) {
               return null;
             }
             const url = (image as { url?: string }).url;
-            return typeof url === "string" && url !== "" ? url : null;
+            return typeof url === 'string' && url !== '' ? url : null;
           })
           .filter((u): u is string => u !== null)
       : [];
@@ -485,7 +493,7 @@ const shapeProductListData = (
       options?.omitTags || !Array.isArray(productObj.tags)
         ? []
         : productObj.tags.map((t) => {
-            if (t && typeof t === "object" && "_id" in t) {
+            if (t && typeof t === 'object' && '_id' in t) {
               return String((t as { _id?: Types.ObjectId })._id);
             }
             return String(t);
@@ -493,6 +501,7 @@ const shapeProductListData = (
 
     const row: Record<string, unknown> = {
       id,
+      sellerUserId: productObj.userId ? String(productObj.userId) : '',
       productName: productObj.productName,
       hsCode: productObj.hsCode,
       categoryName,
@@ -504,7 +513,7 @@ const shapeProductListData = (
       views: productObj.views ?? 0,
       rating: productObj.rating ?? 0,
       totalReviews: productObj.totalReviews ?? 0,
-      updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : "",
+      updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : '',
     };
 
     if (!options?.omitCategoryId) {
@@ -524,17 +533,17 @@ const buildProductListQuery = (
   extraExcludeFields: string[] = [],
 ) =>
   new QueryBuilder(baseQuery, query)
-    .search(["productName", "hsCode", "slug"])
+    .search(['productName', 'hsCode', 'slug'])
     .filter(extraExcludeFields)
     .sort()
     .fields(
-      "productName hsCode categoryId priceRange productImages slug tags status isFeatured views rating totalReviews updatedAt",
+      'userId productName hsCode categoryId priceRange productImages slug tags status isFeatured views rating totalReviews updatedAt',
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 
 /** Flat `minPrice` / `maxPrice` → `$expr` overlap on product band [pMin, pMax]. */
 function parseFiniteQueryNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === "") return undefined;
+  if (value === undefined || value === null || value === '') return undefined;
   if (Array.isArray(value)) {
     return parseFiniteQueryNumber(value[0]);
   }
@@ -551,11 +560,7 @@ function mapFlatPriceParamsToRangeFilter(
   delete q.minPrice;
   delete q.maxPrice;
 
-  if (
-    minPrice !== undefined &&
-    maxPrice !== undefined &&
-    maxPrice < minPrice
-  ) {
+  if (minPrice !== undefined && maxPrice !== undefined && maxPrice < minPrice) {
     maxPrice = undefined;
   }
 
@@ -569,16 +574,13 @@ function mapFlatPriceParamsToRangeFilter(
 
   if (minPrice !== undefined && minPrice >= 0) {
     parts.push({
-      $gte: [
-        { $ifNull: ["$priceRange.max", "$priceRange.min"] },
-        minPrice,
-      ],
+      $gte: [{ $ifNull: ['$priceRange.max', '$priceRange.min'] }, minPrice],
     });
   }
 
   if (maxPrice !== undefined && maxPrice >= 0) {
     parts.push({
-      $lte: [{ $ifNull: ["$priceRange.min", "$priceRange.max"] }, maxPrice],
+      $lte: [{ $ifNull: ['$priceRange.min', '$priceRange.max'] }, maxPrice],
     });
   }
 
@@ -600,12 +602,12 @@ const getAllProductsFromDB = async (query: Record<string, unknown>) => {
   const meta = await productQuery.countTotal();
   const products = await productQuery.modelQuery
     .populate({
-      path: "categoryId",
-      select: "categoryName slug",
+      path: 'categoryId',
+      select: 'categoryName slug',
     })
     .populate({
-      path: "productImages",
-      select: "url -_id",
+      path: 'productImages',
+      select: 'url -_id',
     })
     .lean();
 
@@ -614,22 +616,94 @@ const getAllProductsFromDB = async (query: Record<string, unknown>) => {
   return { data, meta };
 };
 
+export type PublicSellerProductMinimalItem = {
+  id: string;
+  slug: string;
+  title: string;
+  image: string | null;
+  priceRange: { min?: number; max?: number } | null;
+  stock: number;
+};
+
+/** Public: active products for a seller — only title, first image, priceRange, stock. */
+const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
+  const oid = new Types.ObjectId(userId);
+
+  const rows = await Product.find({
+    userId: oid,
+    status: 'active',
+  })
+    .select('_id productName priceRange productImages stock slug')
+    .populate('productImages', 'url')
+    .sort({ updatedAt: -1 })
+    .limit(100)
+    .lean();
+
+  const data: PublicSellerProductMinimalItem[] = (
+    rows as unknown as Record<string, unknown>[]
+  ).map((p) => {
+    const imgs = p.productImages as unknown[] | undefined;
+    let image: string | null = null;
+    if (Array.isArray(imgs) && imgs.length > 0) {
+      const first = imgs[0];
+      if (first && typeof first === 'object' && first !== null) {
+        const url = (first as { url?: string }).url;
+        if (typeof url === 'string' && url.length > 0) {
+          image = url;
+        }
+      }
+    }
+    const pr = p.priceRange;
+    const priceRange =
+      pr && typeof pr === 'object' && !Array.isArray(pr)
+        ? {
+            min:
+              typeof (pr as { min?: unknown }).min === 'number'
+                ? (pr as { min: number }).min
+                : undefined,
+            max:
+              typeof (pr as { max?: unknown }).max === 'number'
+                ? (pr as { max: number }).max
+                : undefined,
+          }
+        : null;
+    const hasBand =
+      priceRange &&
+      (priceRange.min !== undefined || priceRange.max !== undefined);
+
+    const _id = p._id as Types.ObjectId | string | undefined;
+    const id =
+      _id !== undefined ? String(_id) : '';
+
+    return {
+      id,
+      slug: typeof p.slug === 'string' ? p.slug : '',
+      title: String(p.productName ?? ''),
+      image,
+      priceRange: hasBand ? priceRange : null,
+      stock: typeof p.stock === 'number' ? p.stock : 0,
+    };
+  });
+
+  return data;
+};
+
 const getMyProductsFromDB = async (
   userId: string,
   query: Record<string, unknown>,
 ) => {
   const baseQuery = Product.find({ userId: new Types.ObjectId(userId) });
-  const productQuery = buildProductListQuery(baseQuery, query, ["userId"]);
+  const productQuery = buildProductListQuery(baseQuery, query, ['userId']);
 
   const meta = await productQuery.countTotal();
   const products = await productQuery.modelQuery
     .populate({
-      path: "categoryId",
-      select: "categoryName slug",
+      path: 'categoryId',
+      select: 'categoryName slug',
     })
     .populate({
-      path: "productImages",
-      select: "url -_id",
+      path: 'productImages',
+      select: 'url -_id',
     })
     .lean();
 
@@ -645,6 +719,7 @@ export const ProductService = {
   createProductIntoDB,
   getAllProductsFromDB,
   getMyProductsFromDB,
+  getPublicMinimalProductsBySellerUserIdFromDB,
   getProductByIdFromDB,
   getProductBySlugFromDB,
   updateMyProductInDB,

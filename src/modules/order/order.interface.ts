@@ -1,12 +1,31 @@
 import { Types } from 'mongoose';
 
 export type OrderStatus =
-  | 'pending'
-  | 'paid'
+  | 'awaiting_exporter_approval'
+  | 'confirmed' 
   | 'processing'
   | 'shipped'
+  | 'received'
+  | 'cheking'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'returned';
+
+/** Minimal row for `GET /order` — no extra fields are returned. */
+export type OrderCardDto = {
+  orderId: string;
+  status: OrderStatus;
+  /** First line item product display name. */
+  productTitle: string;
+  productImageUrl: string | null;
+  /** Order total at checkout. */
+  price: number;
+  orderPlacedAt: string;
+  /** Exporter / seller display name. */
+  fromName: string;
+  /** Importer / buyer display name. */
+  toName: string;
+};
 
 export type PaymentMethod = 'bkash' | 'nagad' | 'card' | 'cod';
 
@@ -47,4 +66,7 @@ export interface Order {
   status: OrderStatus;
   payment: OrderPayment;
   shippingAddress: OrderShippingAddressSnapshot;
+  /** Optional delivery window (e.g. set when exporter confirms / ships). */
+  deliveryMinAt?: Date;
+  deliveryMaxAt?: Date;
 }

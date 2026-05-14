@@ -62,6 +62,14 @@ export const productIdParamZodSchema = z.object({
   query: z.any().optional(),
 });
 
+/** Public list: products for a seller `User` id. */
+export const productSellerUserIdParamZodSchema = z.object({
+  params: z.object({
+    userId: objectIdString,
+  }),
+  query: z.any().optional(),
+});
+
 /** Public detail route: `GET /:slug` (not Mongo `_id`). */
 export const productSlugParamZodSchema = z.object({
   params: z.object({
