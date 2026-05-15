@@ -35,6 +35,14 @@ const socketChatSendSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
+const socketChatReadSchema = z.object({
+  peerUserId: objectIdString,
+});
+
+const socketPresencePingSchema = z.object({
+  peerUserId: objectIdString,
+});
+
 const isActiveRole = (value: unknown): value is ActiveRole =>
   typeof value === 'string' && USER_ACTIVE_ROLES.some((r) => r === value);
 
@@ -134,6 +142,42 @@ export const registerChatSocket = (httpServer: HttpServer): Server => {
               ? err.message
               : 'Failed to send';
         ack?.({ ok: false, error: msg });
+      }
+    });
+
+    socket.on('chat:read', async (raw: unknown, ack?: (r: unknown) => void) => {
+      try {
+        const payload = socketChatReadSchema.parse(raw);
+        const { readAt } = await ChatService.markConversationRead(
+          userId,
+          payload.peerUserId,
+        );
+        io.to(`user:${payload.peerUserId}`).emit('chat:read', {
+          readerUserId: userId,
+          readAt,
+        });
+        ack?.({ ok: true, readAt });
+      } catch (err: unknown) {
+        const msg =
+          err instanceof z.ZodError
+            ? err.issues.map((i) => i.message).join(', ')
+            : err instanceof Error
+              ? err.message
+              : 'Failed to mark read';
+        ack?.({ ok: false, error: msg });
+      }
+    });
+
+    socket.on('chat:presence:ping', (raw: unknown) => {
+      try {
+        const payload = socketPresencePingSchema.parse(raw);
+        io.to(`user:${payload.peerUserId}`).emit('chat:presence', {
+          userId,
+          active: true,
+          ts: Date.now(),
+        });
+      } catch {
+        /* ignore malformed */
       }
     });
   });

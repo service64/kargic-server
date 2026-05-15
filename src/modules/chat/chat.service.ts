@@ -15,7 +15,105 @@ import type { ChatMessageType, IChatMessageDoc } from './message.interface';
 
 const toOid = (id: string) => new Types.ObjectId(id);
 
+/** Peer shown as “live” if their last authenticated API hit was within this window. */
+export const PEER_LIVE_ACTIVITY_MS = 5 * 60 * 1000;
+
 const sortedPeerKey = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
+
+const findConversationLean = async (
+  userIdA: string,
+  userIdB: string,
+): Promise<(IConversationDoc & { _id: Types.ObjectId }) | null> => {
+  const [lowStr, highStr] = sortedPeerKey(userIdA, userIdB);
+  const doc = await ConversationModel.findOne({
+    participantLow: toOid(lowStr),
+    participantHigh: toOid(highStr),
+  })
+    .lean()
+    .exec();
+  return doc as (IConversationDoc & { _id: Types.ObjectId }) | null;
+};
+
+const readWatermarkFieldForUser = (
+  conv: Pick<IConversationDoc, 'participantLow' | 'participantHigh'>,
+  userId: string,
+): 'lastReadAtForLow' | 'lastReadAtForHigh' => {
+  const lowStr = String(conv.participantLow);
+  return lowStr === userId ? 'lastReadAtForLow' : 'lastReadAtForHigh';
+};
+
+export type ChatReadState = {
+  myLastReadAt: string | null;
+  peerLastReadAt: string | null;
+};
+
+const getReadStateForPair = async (
+  userId: string,
+  peerUserId: string,
+): Promise<ChatReadState> => {
+  const conv = await findConversationLean(userId, peerUserId);
+  if (!conv?._id) {
+    return { myLastReadAt: null, peerLastReadAt: null };
+  }
+  const lowStr = String(conv.participantLow);
+  const myField: 'lastReadAtForLow' | 'lastReadAtForHigh' =
+    lowStr === userId ? 'lastReadAtForLow' : 'lastReadAtForHigh';
+  const peerField: 'lastReadAtForLow' | 'lastReadAtForHigh' =
+    lowStr === userId ? 'lastReadAtForHigh' : 'lastReadAtForLow';
+  const myVal = conv[myField];
+  const peerVal = conv[peerField];
+  return {
+    myLastReadAt: myVal instanceof Date ? myVal.toISOString() : null,
+    peerLastReadAt: peerVal instanceof Date ? peerVal.toISOString() : null,
+  };
+};
+
+const countUnreadIncomingForUser = async (
+  meUserId: string,
+  conv: IConversationDoc & { _id: Types.ObjectId },
+): Promise<number> => {
+  const lowStr = String(conv.participantLow);
+  const peerOid = lowStr === meUserId ? conv.participantHigh : conv.participantLow;
+  const field = readWatermarkFieldForUser(conv, meUserId);
+  const myWatermark = conv[field];
+
+  const filter: Record<string, unknown> = {
+    conversationId: conv._id,
+    senderId: peerOid,
+  };
+  if (myWatermark instanceof Date) {
+    filter.createdAt = { $gt: myWatermark };
+  }
+
+  return ChatMessageModel.countDocuments(filter).exec();
+};
+
+const markConversationRead = async (
+  userId: string,
+  peerUserId: string,
+): Promise<{ readAt: string }> => {
+  if (userId === peerUserId) {
+    throw new AppError('Invalid peer', httpStatus.BAD_REQUEST);
+  }
+  const allowed = await UserBlockService.canExchangeMessages(userId, peerUserId);
+  if (!allowed) {
+    throw new AppError('Messaging is not allowed', httpStatus.FORBIDDEN);
+  }
+
+  const conv = await findConversationLean(userId, peerUserId);
+  if (!conv?._id) {
+    return { readAt: new Date().toISOString() };
+  }
+
+  const field = readWatermarkFieldForUser(conv, userId);
+  const existing = conv[field];
+  const now = new Date();
+  const next =
+    existing instanceof Date && existing.getTime() > now.getTime() ? existing : now;
+
+  await ConversationModel.updateOne({ _id: conv._id }, { $set: { [field]: next } }).exec();
+  return { readAt: next.toISOString() };
+};
 
 const getOrCreateConversation = async (userIdA: string, userIdB: string) => {
   const [lowStr, highStr] = sortedPeerKey(userIdA, userIdB);
@@ -359,15 +457,14 @@ const listMessagesForPair = async (
   page: number,
   limit: number,
 ) => {
-  const [lowStr, highStr] = sortedPeerKey(userId, peerUserId);
-  const conv = await ConversationModel.findOne({
-    participantLow: toOid(lowStr),
-    participantHigh: toOid(highStr),
-  })
-    .lean()
-    .exec();
+  const conv = await findConversationLean(userId, peerUserId);
+  const readState = await getReadStateForPair(userId, peerUserId);
   if (!conv) {
-    return { data: [], meta: { page, limit, total: 0, totalPages: 0 } };
+    return {
+      data: [],
+      meta: { page, limit, total: 0, totalPages: 0 },
+      readState,
+    };
   }
   const skip = (page - 1) * limit;
   const filter = { conversationId: conv._id };
@@ -393,6 +490,7 @@ const listMessagesForPair = async (
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     },
+    readState,
   };
 };
 
@@ -403,6 +501,9 @@ export type ChatPeerUser = {
   phone: string;
   activeRole: ActiveRole;
   profileImage: { url?: string; name?: string; alt?: string } | null;
+  lastApiActivityAt: string | null;
+  /** True when `lastApiActivityAt` is within {@link PEER_LIVE_ACTIVITY_MS}. */
+  liveActive: boolean;
 };
 
 export type ChatPeerListItem = {
@@ -410,6 +511,7 @@ export type ChatPeerListItem = {
   peer: ChatPeerUser | null;
   conversationId: string;
   lastMessageAt: string | null;
+  unreadCount: number;
 };
 
 const shapeLeanPeerUser = (u: {
@@ -419,6 +521,7 @@ const shapeLeanPeerUser = (u: {
   phone?: string;
   activeRole?: ActiveRole;
   profileImage?: unknown;
+  lastApiActivityAt?: Date | string | null;
 }): ChatPeerUser => {
   const rawImg = u.profileImage;
   let profileImage: ChatPeerUser['profileImage'] = null;
@@ -438,6 +541,21 @@ const shapeLeanPeerUser = (u: {
       profileImage = null;
     }
   }
+
+  let lastAtMs = 0;
+  const rawLast = u.lastApiActivityAt;
+  if (rawLast instanceof Date) {
+    lastAtMs = rawLast.getTime();
+  } else if (typeof rawLast === 'string' && rawLast.length > 0) {
+    const parsed = new Date(rawLast).getTime();
+    lastAtMs = Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  const lastApiActivityAt =
+    lastAtMs > 0 ? new Date(lastAtMs).toISOString() : null;
+  const liveActive =
+    lastAtMs > 0 && Date.now() - lastAtMs < PEER_LIVE_ACTIVITY_MS;
+
   return {
     id: String(u._id),
     name: String(u.name ?? ''),
@@ -445,6 +563,8 @@ const shapeLeanPeerUser = (u: {
     phone: String(u.phone ?? ''),
     activeRole: u.activeRole as ActiveRole,
     profileImage,
+    lastApiActivityAt,
+    liveActive,
   };
 };
 
@@ -491,7 +611,7 @@ const listPeersForUser = async (userId: string, query: Record<string, unknown>) 
   const peerDocs =
     peerOids.length > 0
       ? await User.find({ _id: { $in: peerOids } })
-          .select('name email phone activeRole profileImage')
+          .select('name email phone activeRole profileImage lastApiActivityAt')
           .populate('profileImage', 'url name alt')
           .lean()
           .exec()
@@ -503,9 +623,16 @@ const listPeersForUser = async (userId: string, query: Record<string, unknown>) 
     ]),
   );
 
-  const data: ChatPeerListItem[] = baseRows.map((row) => ({
+  const unreadCounts = await Promise.all(
+    rows.map(async (c) =>
+      countUnreadIncomingForUser(me, c as IConversationDoc & { _id: Types.ObjectId }),
+    ),
+  );
+
+  const data: ChatPeerListItem[] = baseRows.map((row, i) => ({
     ...row,
     peer: peerById.get(row.peerUserId) ?? null,
+    unreadCount: unreadCounts[i] ?? 0,
   }));
 
   return {
@@ -526,4 +653,5 @@ export const ChatService = {
   sendChatMessage,
   listMessagesForPair,
   listPeersForUser,
+  markConversationRead,
 };
