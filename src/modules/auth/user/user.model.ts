@@ -77,6 +77,11 @@ const userSchema = new Schema<IUser, UserModel>(
       enum: USER_STATUS,
       default: 'ACTIVE',
     },
+    lastApiActivityAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

@@ -25,7 +25,14 @@ const listMyPeers = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Peers', result);
 });
 
+const markThreadRead = catchAsync(async (req: Request, res: Response) => {
+  const peerUserId = String(req.params.peerUserId);
+  const result = await ChatService.markConversationRead(req.user!.userId, peerUserId);
+  return sendResponse(res, httpStatus.OK, 'Read', result);
+});
+
 export const ChatController = {
   listMessagesWithPeer,
   listMyPeers,
+  markThreadRead,
 };
