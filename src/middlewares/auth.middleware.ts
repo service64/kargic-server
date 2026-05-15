@@ -7,6 +7,24 @@ import AppError from '../errors/AppError';
 import { LoginSession } from '../modules/auth/loginSession/loginSession.model';
 import type { ActiveRole } from '../modules/auth/user/user.interface';
 import { USER_ACTIVE_ROLES } from '../modules/auth/user/user.interface';
+import { User } from '../modules/auth/user/user.model';
+
+/** Avoid writing Mongo on every request; still keeps “last active” fresh enough for UI. */
+const AUTH_ACTIVITY_WRITE_MS = 45 * 1000;
+const lastAuthActivityWriteAt = new Map<string, number>();
+
+function bumpUserApiActivity(userId: string): void {
+  const now = Date.now();
+  const prev = lastAuthActivityWriteAt.get(userId) ?? 0;
+  if (now - prev < AUTH_ACTIVITY_WRITE_MS) return;
+  lastAuthActivityWriteAt.set(userId, now);
+  void User.updateOne(
+    { _id: new Types.ObjectId(userId) },
+    { $set: { lastApiActivityAt: new Date() } },
+  )
+    .exec()
+    .catch(() => {});
+}
 
 export type JwtPayload = {
   userId: string;
@@ -74,6 +92,7 @@ export const auth =
         activeRole,
         ...(decoded.lsid ? { loginSessionId: decoded.lsid } : {}),
       };
+      bumpUserApiActivity(decoded.userId);
       next();
     } catch (err) {
       if (err instanceof AppError) {

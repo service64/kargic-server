@@ -18,3 +18,9 @@ export const myPeersQueryZodSchema = z.object({
     limit: z.coerce.number().int().positive().max(100).optional(),
   }),
 });
+
+export const peerUserReadParamsZodSchema = z.object({
+  params: z.object({
+    peerUserId: objectIdString,
+  }),
+});

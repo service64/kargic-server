@@ -5,6 +5,7 @@ import { ChatController } from './chat.controller';
 import {
   myPeersQueryZodSchema,
   peerUserMessagesQueryZodSchema,
+  peerUserReadParamsZodSchema,
 } from './chat.validation';
 
 const router = express.Router();
@@ -21,6 +22,12 @@ router.get(
   '/with/:peerUserId/messages',
   validateRequest(peerUserMessagesQueryZodSchema),
   ChatController.listMessagesWithPeer,
+);
+
+router.post(
+  '/with/:peerUserId/read',
+  validateRequest(peerUserReadParamsZodSchema),
+  ChatController.markThreadRead,
 );
 
 export const ChatRoutes = router;

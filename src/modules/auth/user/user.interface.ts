@@ -33,6 +33,8 @@ export interface IUser {
   activeRole: ActiveRole;
   isVerified?: boolean;
   status: UserStatus;
+  /** Last time this user hit an authenticated API (client “online” signal). */
+  lastApiActivityAt?: Date | null;
 }
 
 export interface UserModel extends Model<IUser> {
