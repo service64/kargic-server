@@ -14,6 +14,8 @@ import { ShippingAddressRoutes } from './src/modules/shippingAddress/shippingAdd
 import { OrderRoutes } from './src/modules/order/order.router';
 import { ChatRoutes } from './src/modules/chat/chat.router';
 import { UserBlockRoutes } from './src/modules/userBlock/userBlock.router';
+import { SavedProductRoutes } from './src/modules/savedProduct/savedProduct.router';
+import { SavedExporterRoutes } from './src/modules/savedExporter/savedExporter.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -68,6 +70,8 @@ app.use('/api/v1/shipping-address', ShippingAddressRoutes);
 app.use('/api/v1/order', OrderRoutes);
 app.use('/api/v1/chat/blocks', UserBlockRoutes);
 app.use('/api/v1/chat', ChatRoutes);
+app.use('/api/v1/saved-product', SavedProductRoutes);
+app.use('/api/v1/saved-exporter', SavedExporterRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------
