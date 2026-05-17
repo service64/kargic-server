@@ -47,12 +47,12 @@ const createLoginSession = async (userId: string | Types.ObjectId, meta: LoginSe
   const existing = await LoginSession.findOne({
     userId: oid,
     deviceId: row.deviceId,
-    deviceType: row.deviceType,
-    os: row.os,
-    browser: row.browser,
-    ip: row.ip,
-    userAgent: row.userAgent,
-    timezone: row.timezone,
+    // deviceType: row.deviceType,
+    // os: row.os,
+    // browser: row.browser,
+    // ip: row.ip,
+    // userAgent: row.userAgent,
+    // timezone: row.timezone,
   }).exec();
 
   if (existing) {
