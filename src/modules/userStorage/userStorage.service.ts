@@ -2,16 +2,36 @@ import httpStatus from 'http-status';
 import { Types } from 'mongoose';
 import { UserStorage } from './userStorage.model';
 import { User } from '../auth/user/user.model';
-import { PackageType } from '../../type/common.type';
+import {
+  PackageType,
+  getStorageLimitMbForPackage,
+  PACKAGE_STORAGE_LIMIT_MB,
+} from '../../type/common.type';
 import AppError from '../../errors/AppError';
+
+type PaymentFields = {
+  paymentStatus?: 'PAID' | 'UNPAID';
+  /** Raw JSON may send ISO strings; coerced in create/update. */
+  paymentDate?: Date | string;
+  paymentAmount?: number;
+  paymentMethod?: 'CARD' | 'PAYPAL' | 'STRIPE';
+};
 
 type CreatePayload = {
   userId: string;
   package: PackageType;
-  storage: { used: number; limit: number };
-};
+  storage: { used: number };
+} & PaymentFields;
 
 const toObjectId = (id: string) => new Types.ObjectId(id);
+
+const parseOptionalBodyDate = (value: unknown): Date | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const d = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(d.getTime()) ? undefined : d;
+};
 
 const createUserStorageIntoDB = async (payload: CreatePayload) => {
   const user = await User.findById(payload.userId);
@@ -29,21 +49,74 @@ const createUserStorageIntoDB = async (payload: CreatePayload) => {
     );
   }
 
-  return UserStorage.create({
+  const paymentDate = parseOptionalBodyDate(payload.paymentDate);
+
+  const doc = {
     userId: toObjectId(payload.userId),
     package: payload.package,
-    storage: payload.storage,
-  });
+    storage: {
+      used: payload.storage.used,
+      limit: getStorageLimitMbForPackage(payload.package),
+    },
+    ...(payload.paymentStatus !== undefined && {
+      paymentStatus: payload.paymentStatus,
+    }),
+    ...(paymentDate !== undefined && { paymentDate }),
+    ...(payload.paymentAmount !== undefined && {
+      paymentAmount: payload.paymentAmount,
+    }),
+    ...(payload.paymentMethod !== undefined && {
+      paymentMethod: payload.paymentMethod,
+    }),
+  };
+
+  return UserStorage.create(doc);
 };
 
 const getUserStorageByUserIdFromDB = async (userId: string) => {
   const doc = await UserStorage.findOne({
     userId: toObjectId(userId),
-  }).populate('userId', 'email phone role');
+  }).populate('userId', 'email phone activeRole');
   if (!doc) {
     throw new AppError('User storage not found', httpStatus.NOT_FOUND);
   }
   return doc;
+};
+
+/** Ensures a FREE-tier row exists (chat uploads rely on this). */
+const getMyUserStorageFromDB = async (userId: string) => {
+  await ensureUserStorageRowForChat(userId);
+  const doc = await UserStorage.findOne({
+    userId: toObjectId(userId),
+  }).populate('userId', 'email phone activeRole');
+  if (!doc) {
+    throw new AppError('User storage not found', httpStatus.NOT_FOUND);
+  }
+  return doc;
+};
+
+const listAllUserStorageFromDB = async (page: number, limit: number) => {
+  const skip = (page - 1) * limit;
+  const filter = {};
+  const [raw, total] = await Promise.all([
+    UserStorage.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'email phone activeRole name')
+      .lean()
+      .exec(),
+    UserStorage.countDocuments(filter).exec(),
+  ]);
+  return {
+    data: raw,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
 };
 
 const updateUserStorageByUserIdInDB = async (
@@ -53,7 +126,9 @@ const updateUserStorageByUserIdInDB = async (
   const $set: Record<string, unknown> = {};
 
   if (typeof body.package === 'string') {
-    $set.package = body.package;
+    const pkg = body.package as PackageType;
+    $set.package = pkg;
+    $set['storage.limit'] = getStorageLimitMbForPackage(pkg);
   }
   if (
     body.storage &&
@@ -64,9 +139,24 @@ const updateUserStorageByUserIdInDB = async (
     if (typeof s.used === 'number') {
       $set['storage.used'] = s.used;
     }
-    if (typeof s.limit === 'number') {
-      $set['storage.limit'] = s.limit;
-    }
+  }
+
+  if (body.paymentStatus === 'PAID' || body.paymentStatus === 'UNPAID') {
+    $set.paymentStatus = body.paymentStatus;
+  }
+  const paymentDate = parseOptionalBodyDate(body.paymentDate);
+  if (paymentDate !== undefined) {
+    $set.paymentDate = paymentDate;
+  }
+  if (typeof body.paymentAmount === 'number') {
+    $set.paymentAmount = body.paymentAmount;
+  }
+  if (
+    body.paymentMethod === 'CARD' ||
+    body.paymentMethod === 'PAYPAL' ||
+    body.paymentMethod === 'STRIPE'
+  ) {
+    $set.paymentMethod = body.paymentMethod;
   }
 
   if (Object.keys($set).length === 0) {
@@ -80,7 +170,7 @@ const updateUserStorageByUserIdInDB = async (
     { userId: toObjectId(userId) },
     { $set },
     { returnDocument: 'after', runValidators: true },
-  ).populate('userId', 'email phone role');
+  ).populate('userId', 'email phone activeRole');
 
   if (!doc) {
     throw new AppError('User storage not found', httpStatus.NOT_FOUND);
@@ -101,7 +191,10 @@ const ensureUserStorageRowForChat = async (userId: string) => {
       $setOnInsert: {
         userId: toObjectId(userId),
         package: 'FREE',
-        storage: { used: 0, limit: 50 },
+        storage: {
+          used: 0,
+          limit: PACKAGE_STORAGE_LIMIT_MB.FREE,
+        },
       },
     },
     { upsert: true },
@@ -143,6 +236,8 @@ const applyChatMediaStorageAfterUpload = async (
 export const UserStorageService = {
   createUserStorageIntoDB,
   getUserStorageByUserIdFromDB,
+  getMyUserStorageFromDB,
+  listAllUserStorageFromDB,
   updateUserStorageByUserIdInDB,
   applyChatMediaStorageAfterUpload,
 };
