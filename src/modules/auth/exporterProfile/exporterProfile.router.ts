@@ -6,6 +6,12 @@ import {
   exporterUserIdParamZodSchema,
   updateExporterProfileZodSchema,
 } from "./exporterProfile.zod";
+import {
+  patchExporterCompanyVerificationZodSchema,
+  patchAdminCompanyVerificationZodSchema,
+  exporterVerificationMeParamZodSchema,
+  exporterVerificationAdminUserParamZodSchema,
+} from "./companyVerification.zod";
 import validateRequest from "../../../middlewares/validateRequest";
 import { auth } from "../../../middlewares/auth.middleware";
 import { USER_ROLES } from "../../../constants";
@@ -25,6 +31,41 @@ router.get(
   "/profile",
   auth(USER_ROLES.EXPORTER,USER_ROLES.ADMIN),
   ExporterProfileController.getExporterProfileById,
+);
+
+router.get(
+  "/verification/me",
+  auth(USER_ROLES.EXPORTER),
+  validateRequest(exporterVerificationMeParamZodSchema),
+  ExporterProfileController.getMyCompanyVerification,
+);
+
+router.patch(
+  "/verification/me",
+  auth(USER_ROLES.EXPORTER),
+  validateRequest(patchExporterCompanyVerificationZodSchema),
+  ExporterProfileController.patchMyCompanyVerification,
+);
+
+router.get(
+  "/verification/admin/:userId",
+  auth(USER_ROLES.ADMIN),
+  validateRequest(exporterVerificationAdminUserParamZodSchema),
+  ExporterProfileController.getAdminCompanyVerification,
+);
+
+router.patch(
+  "/verification/admin/:userId",
+  auth(USER_ROLES.ADMIN),
+  validateRequest(patchAdminCompanyVerificationZodSchema),
+  ExporterProfileController.patchAdminCompanyVerification,
+);
+
+router.delete(
+  "/verification/admin/:userId",
+  auth(USER_ROLES.ADMIN),
+  validateRequest(exporterVerificationAdminUserParamZodSchema),
+  ExporterProfileController.deleteAdminCompanyVerification,
 );
 
 router.get(

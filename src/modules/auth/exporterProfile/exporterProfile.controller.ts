@@ -1,8 +1,70 @@
 import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ExporterProfileService } from './exporterProfile.service';
+import { CompanyVerificationService } from './companyVerification.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
+
+const getMyCompanyVerification = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.userId as string;
+  const result = await CompanyVerificationService.getCompanyVerificationByUserId(userId);
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Company verification retrieved successfully',
+    result,
+  );
+});
+
+const patchMyCompanyVerification = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.userId as string;
+  const result = await CompanyVerificationService.patchCompanyVerificationForExporter(
+    userId,
+    req.body as Record<string, unknown>,
+  );
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Company verification updated successfully',
+    result,
+  );
+});
+
+const getAdminCompanyVerification = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params as { userId: string };
+  const result = await CompanyVerificationService.getCompanyVerificationByUserId(userId);
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Company verification retrieved successfully',
+    result,
+  );
+});
+
+const patchAdminCompanyVerification = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params as { userId: string };
+  const result = await CompanyVerificationService.patchCompanyVerificationForAdmin(
+    userId,
+    req.body as Record<string, unknown>,
+  );
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Company verification updated successfully',
+    result,
+  );
+});
+
+const deleteAdminCompanyVerification = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params as { userId: string };
+  const result = await CompanyVerificationService.deleteCompanyVerificationForAdmin(userId);
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Company verification removed successfully',
+    result,
+  );
+});
 
 const createExporterProfile = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user?.userId;
@@ -64,6 +126,11 @@ export const ExporterProfileController = {
   getAllExporterProfiles,
   getPublicExporterDetailByUserId,
   getExporterProfileById,
+  getMyCompanyVerification,
+  patchMyCompanyVerification,
+  getAdminCompanyVerification,
+  patchAdminCompanyVerification,
+  deleteAdminCompanyVerification,
   updateExporterProfile,
   deleteExporterProfile,
 };

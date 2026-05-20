@@ -8,6 +8,7 @@ import type { CompanyType, EmployeeCount } from '../../../type/common.type';
 import { generateSlug } from '../../../utils/generateSlug';
 import { IExporterProfile } from './exporterProfile.interface';
 import { Product } from '../../product/product.model';
+import { populateCompanyVerificationImages } from './companyVerification.service';
 
 type CreatePayload = {
   userId: string;
@@ -335,9 +336,18 @@ const getExporterProfileByIdFromDB = async (userId: string) => {
   const s0 = o.banner0 ?? legacyArr?.[0];
   const s1 = o.banner1 ?? legacyArr?.[1];
   const s2 = o.banner2 ?? legacyArr?.[2];
-  const { banner0, banner1, banner2, bannerUrl: _legacyField, ...rest } = o;
+  const { banner0, banner1, banner2, bannerUrl: _legacyField, companyVerification: rawCv, ...rest } = o;
+
+  let companyVerification: unknown = rawCv;
+  if (rawCv && typeof rawCv === 'object') {
+    companyVerification = await populateCompanyVerificationImages(
+      JSON.parse(JSON.stringify(rawCv)) as Record<string, unknown>,
+    );
+  }
+
   return {
     ...rest,
+    companyVerification,
     bannerUrl: [s0 ?? null, s1 ?? null, s2 ?? null],
   };
 };

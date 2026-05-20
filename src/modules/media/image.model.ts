@@ -17,7 +17,15 @@ const imageSchema = new Schema<IImage>(
     },
     useCase: {
       type: String,
-      enum: ['CATEGORY', 'LOGO', 'PRODUCT', 'USER', 'BANNER', 'MESSAGE'],
+      enum: [
+        'CATEGORY',
+        'LOGO',
+        'PRODUCT',
+        'USER',
+        'BANNER',
+        'MESSAGE',
+        'VERIFICATION',
+      ],
       required: true,
     },
   },
