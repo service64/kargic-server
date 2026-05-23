@@ -75,3 +75,12 @@ export const updateExporterProfileZodSchema = z.object({
     }),
   query: z.any().optional(),
 });
+
+/** GET `/admin` — admin exporter list (pagination + company name filter). */
+export const adminGetExportersQueryZodSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    companyName: z.string().trim().max(200).optional(),
+  }),
+});

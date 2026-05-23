@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ExporterProfileService } from './exporterProfile.service';
 import { CompanyVerificationService } from './companyVerification.service';
+import { AdminExporterListService } from './adminExporterList.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 
@@ -121,6 +122,16 @@ const deleteExporterProfile = catchAsync(async (req: Request, res: Response) => 
   return sendResponse(res, httpStatus.OK, 'Exporter profile deleted successfully', result);
 });
 
+const getExportersForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminExporterListService.getExportersForAdminFromDB(
+    req.query as Record<string, unknown>,
+  );
+  return sendResponse(res, httpStatus.OK, 'Exporters fetched successfully', {
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 export const ExporterProfileController = {
   createExporterProfile,
   getAllExporterProfiles,
@@ -133,4 +144,5 @@ export const ExporterProfileController = {
   deleteAdminCompanyVerification,
   updateExporterProfile,
   deleteExporterProfile,
+  getExportersForAdmin,
 };

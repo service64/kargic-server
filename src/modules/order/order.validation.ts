@@ -91,3 +91,25 @@ export const getOrdersQueryZodSchema = z.object({
     orderId: objectIdString.optional(),
   }),
 });
+
+/** GET `/admin` — admin order list (pagination + optional filters). */
+export const adminGetOrdersQueryZodSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    sort: z.string().trim().optional(),
+    fields: z.string().trim().optional(),
+    status: orderStatusEnum.optional(),
+    productId: objectIdString.optional(),
+    productName: z.string().trim().max(200).optional(),
+    /** Importer (buyer) user id. */
+    userId: objectIdString.optional(),
+    userName: z.string().trim().max(200).optional(),
+    orderId: objectIdString.optional(),
+    /** Filter orders created on this UTC calendar day (`YYYY-MM-DD`). */
+    orderDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'orderDate must be YYYY-MM-DD')
+      .optional(),
+  }),
+});

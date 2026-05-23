@@ -89,5 +89,6 @@ const orderSchema = new Schema<Order>(
 );
 
 orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index({ status: 1 });
 
 export const OrderModel = model<Order>('Order', orderSchema);

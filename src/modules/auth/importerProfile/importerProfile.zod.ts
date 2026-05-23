@@ -44,3 +44,15 @@ export const updateImporterProfileZodSchema = z.object({
     }),
   query: z.any().optional(),
 });
+
+/** GET `/admin` — admin importer list (pagination + filters). */
+export const adminGetImportersQueryZodSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    companyName: z.string().trim().max(200).optional(),
+    importLicense: z.string().trim().max(200).optional(),
+    businessType: z.string().trim().max(200).optional(),
+    country: z.string().trim().max(200).optional(),
+  }),
+});

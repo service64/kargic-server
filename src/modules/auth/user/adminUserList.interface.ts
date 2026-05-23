@@ -1,0 +1,8 @@
+/** Row for `GET /user/admin` (paginated platform users). */
+export type AdminUserListRowDto = {
+  userId: string;
+  name: string;
+  email: string;
+  phone: string;
+  image: string | null;
+};
