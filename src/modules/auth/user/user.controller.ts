@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { UserService } from './user.service';
 import { SiteStatisticsService } from './siteStatistics.service';
+import { AdminUserListService } from './adminUserList.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 import { setRefreshTokenCookie } from '../../../utils/refreshTokenCookie';
@@ -186,6 +187,16 @@ const getSiteStatistics = catchAsync(async (_req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Site statistics', result);
 });
 
+const getUsersForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminUserListService.getUsersForAdminFromDB(
+    req.query as Record<string, unknown>,
+  );
+  return sendResponse(res, httpStatus.OK, 'Users fetched successfully', {
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 export const UserController = {
   createUser,
   verifyOtp,
@@ -204,4 +215,5 @@ export const UserController = {
   getProfile,
   updateProfile,
   getSiteStatistics,
+  getUsersForAdmin,
 };

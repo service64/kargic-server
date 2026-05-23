@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ImporterProfileService } from './importerProfile.service';
+import { AdminImporterListService } from './adminImporterList.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 
@@ -92,6 +93,16 @@ const deleteImporterProfile = catchAsync(
   },
 );
 
+const getImportersForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminImporterListService.getImportersForAdminFromDB(
+    req.query as Record<string, unknown>,
+  );
+  return sendResponse(res, httpStatus.OK, 'Importers fetched successfully', {
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 export const ImporterProfileController = {
   createImporterProfile,
   getAllImporterProfiles,
@@ -99,4 +110,5 @@ export const ImporterProfileController = {
   getPublicImporterDetailByUserId,
   updateImporterProfile,
   deleteImporterProfile,
+  getImportersForAdmin,
 };

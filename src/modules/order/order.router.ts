@@ -1,8 +1,10 @@
 import express from 'express';
 import { auth } from '../../middlewares/auth.middleware';
 import validateRequest from '../../middlewares/validateRequest';
+import { USER_ROLES } from '../../constants';
 import { OrderController } from './order.controller';
 import {
+  adminGetOrdersQueryZodSchema,
   createOrderZodSchema,
   getOrdersQueryZodSchema,
   orderDetailsParamsZodSchema,
@@ -26,6 +28,20 @@ router.post(
 );
 
 router.get(
+  '/admin',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminGetOrdersQueryZodSchema),
+  OrderController.getAllOrdersForAdmin,
+);
+
+router.get(
+  '/admin/:id',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(orderDetailsParamsZodSchema),
+  OrderController.getOrderByIdForAdmin,
+);
+
+router.get(
   '/:id',
   auth('IMPORTER', 'EXPORTER'),
   validateRequest(orderDetailsParamsZodSchema),
@@ -38,6 +54,5 @@ router.patch(
   validateRequest(orderStatusTransitionZodSchema),
   OrderController.updateOrderStatus,
 );
-//  get all orders for admin
 
 export const OrderRoutes = router;

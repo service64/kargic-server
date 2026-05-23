@@ -1,6 +1,7 @@
 import express from "express";
 import { ImporterProfileController } from "./importerProfile.controller";
 import {
+  adminGetImportersQueryZodSchema,
   createImporterProfileZodSchema,
   importerProfileIdParamZodSchema,
   importerUserIdParamZodSchema,
@@ -18,6 +19,14 @@ router.post(
   auth(USER_ROLES.IMPORTER),
   validateRequest(createImporterProfileZodSchema),
   ImporterProfileController.createImporterProfile,
+);
+
+/** Admin: paginated importer list — filter by company, license, type, country. */
+router.get(
+  "/admin",
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminGetImportersQueryZodSchema),
+  ImporterProfileController.getImportersForAdmin,
 );
 
 router.get(
@@ -43,7 +52,6 @@ router.patch(
   validateRequest(updateImporterProfileZodSchema),
   ImporterProfileController.updateImporterProfile,
 );
-
 // router.delete(
 //   "/:id",
 //   auth(USER_ROLES.IMPORTER, USER_ROLES.ADMIN),

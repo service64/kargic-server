@@ -48,9 +48,26 @@ const getOrderById = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Order retrieved successfully', result);
 });
 
+const getAllOrdersForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getAllOrdersForAdminFromDB(
+    req.query as Record<string, unknown>,
+  );
+  return sendResponse(res, httpStatus.OK, 'Orders fetched successfully', {
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
+const getOrderByIdForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const result = await OrderService.getOrderByIdForAdminFromDB(String(req.params.id));
+  return sendResponse(res, httpStatus.OK, 'Order retrieved successfully', result);
+});
+
 export const OrderController = {
   createOrder,
   updateOrderStatus,
   getMyOrders,
   getOrderById,
+  getAllOrdersForAdmin,
+  getOrderByIdForAdmin,
 };

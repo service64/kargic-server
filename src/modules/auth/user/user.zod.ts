@@ -123,3 +123,14 @@ const profileUpdateBodySchema = z
 export const updateProfileZodSchema = z.object({
   body: profileUpdateBodySchema,
 });
+
+/** GET `/admin` — admin user list (pagination + name/email/phone filters). */
+export const adminGetUsersQueryZodSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    name: z.string().trim().max(200).optional(),
+    email: z.string().trim().max(200).optional(),
+    phone: z.string().trim().max(50).optional(),
+  }),
+});

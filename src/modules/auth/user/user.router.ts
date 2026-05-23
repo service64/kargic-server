@@ -13,6 +13,7 @@ import {
   changePasswordZodSchema,
   softDeleteAccountZodSchema,
   updateProfileZodSchema,
+  adminGetUsersQueryZodSchema,
 } from './user.zod';
 import validateRequest from '../../../middlewares/validateRequest';
 import { authSessionManagement } from '../../../middlewares/authSessionManagement.middleware';
@@ -110,7 +111,14 @@ router.delete(
   UserController.softDeleteAccount,
 );
 
-//  site statistics routes — admin dashboard (authenticated API activity = “online”).
+/** Admin: paginated user list — filter by name, email, phone. */
+router.get(
+  '/admin',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminGetUsersQueryZodSchema),
+  UserController.getUsersForAdmin,
+);
+
 router.get(
   '/site-statistics',
   auth(USER_ROLES.ADMIN),

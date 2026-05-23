@@ -1,6 +1,7 @@
 import express from "express";
 import { ExporterProfileController } from "./exporterProfile.controller";
 import {
+  adminGetExportersQueryZodSchema,
   createExporterProfileZodSchema,
   exporterProfileIdParamZodSchema,
   exporterUserIdParamZodSchema,
@@ -23,6 +24,14 @@ router.post(
   auth(USER_ROLES.EXPORTER),
   validateRequest(createExporterProfileZodSchema),
   ExporterProfileController.createExporterProfile,
+);
+
+/** Admin: paginated exporter list — filter by company name. */
+router.get(
+  "/admin",
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminGetExportersQueryZodSchema),
+  ExporterProfileController.getExportersForAdmin,
 );
 
 router.get("/", ExporterProfileController.getAllExporterProfiles);
@@ -87,5 +96,4 @@ router.delete(
   validateRequest(exporterProfileIdParamZodSchema),
   ExporterProfileController.deleteExporterProfile,
 );
-
 export const ExporterProfileRoutes = router;

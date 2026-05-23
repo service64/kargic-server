@@ -11,6 +11,21 @@ export type OrderStatus =
   | 'cancelled'
   | 'returned';
 
+/** Admin paginated list row (`GET /order/admin`). */
+export type AdminOrderListRowDto = {
+  orderId: string;
+  orderCreatedAt: string;
+  productId: string;
+  productName: string;
+  /** First line item unit price. */
+  unitPrice: number;
+  totalPrice: number;
+  importerName: string;
+  exporterName: string;
+  deliveryMaxAt: string | null;
+  status: OrderStatus;
+};
+
 /** Minimal row for `GET /order` — no extra fields are returned. */
 export type OrderCardDto = {
   orderId: string;

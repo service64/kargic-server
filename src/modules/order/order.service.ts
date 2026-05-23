@@ -6,7 +6,12 @@ import type { ActiveRole } from "../auth/user/user.interface";
 import { User } from "../auth/user/user.model";
 import { Product } from "../product/product.model";
 import { ShippingAddressModel } from "../shippingAddress/shippingAddress.model";
-import type { Order, OrderCardDto, OrderStatus } from "./order.interface";
+import type {
+  AdminOrderListRowDto,
+  Order,
+  OrderCardDto,
+  OrderStatus,
+} from "./order.interface";
 import { OrderModel } from "./order.model";
 
 type CreateOrderBodyItem = {
@@ -382,6 +387,28 @@ const parseOptionalTrimmedString = (value: unknown): string | undefined => {
   return t.length > 0 ? t : undefined;
 };
 
+/** UTC calendar day bounds for `YYYY-MM-DD` (used by admin order date filter). */
+const parseOrderDateUtcRange = (
+  value: unknown,
+): { $gte: Date; $lt: Date } | undefined => {
+  const raw = parseOptionalTrimmedString(value);
+  if (!raw) return undefined;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return undefined;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || mo < 0 || mo > 11 || d < 1 || d > 31) {
+    return undefined;
+  }
+  const start = new Date(Date.UTC(y, mo, d, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(y, mo, d + 1, 0, 0, 0, 0));
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return undefined;
+  }
+  return { $gte: start, $lt: end };
+};
+
 /** Only pagination/sort/field projection — never pass raw `req.query` into QueryBuilder.filter (unsafe). */
 const pickOrderListPaginationQuery = (
   query: Record<string, unknown>,
@@ -507,13 +534,13 @@ const shapeOrdersToCardDto = async (
   });
 };
 
-const emptyOrdersPageMeta = async (query: Record<string, unknown>) => {
+const emptyOrdersPageMeta = async <T>(query: Record<string, unknown>) => {
   const paginationQuery = pickOrderListPaginationQuery(query);
   const qb = new QueryBuilder(OrderModel.find({ _id: null }), paginationQuery)
     .sort()
     .paginate({ defaultLimit: 10, maxLimit: 100 });
   const meta = await qb.countTotal();
-  return { data: [] as OrderCardDto[], meta };
+  return { data: [] as T[], meta };
 };
 
 export type OrderListMeta = Awaited<
@@ -548,7 +575,7 @@ const getOrdersForCurrentUserFromDB = async (
       .distinct("_id")
       .exec();
     if (exporterProductIds.length === 0) {
-      return emptyOrdersPageMeta(query);
+      return emptyOrdersPageMeta<OrderCardDto>(query);
     }
     andParts.push({ "items.productId": { $in: exporterProductIds } });
   }
@@ -569,7 +596,7 @@ const getOrdersForCurrentUserFromDB = async (
         : { productName: nameRx };
     const matchingIds = await Product.find(productScope).distinct("_id").exec();
     if (matchingIds.length === 0) {
-      return emptyOrdersPageMeta(query);
+      return emptyOrdersPageMeta<OrderCardDto>(query);
     }
     andParts.push({ "items.productId": { $in: matchingIds } });
   }
@@ -582,7 +609,7 @@ const getOrdersForCurrentUserFromDB = async (
         .distinct("_id")
         .exec();
       if (sellerProducts.length === 0) {
-        return emptyOrdersPageMeta(query);
+        return emptyOrdersPageMeta<OrderCardDto>(query);
       }
       andParts.push({ "items.productId": { $in: sellerProducts } });
     }
@@ -593,7 +620,7 @@ const getOrdersForCurrentUserFromDB = async (
     const matchedUsers = await User.find({ name: nameRx }).select("_id").lean();
     const matchedUserIds = matchedUsers.map((u) => u._id);
     if (matchedUserIds.length === 0) {
-      return emptyOrdersPageMeta(query);
+      return emptyOrdersPageMeta<OrderCardDto>(query);
     }
     if (activeRole === "EXPORTER") {
       andParts.push({ userId: { $in: matchedUserIds } });
@@ -604,7 +631,7 @@ const getOrdersForCurrentUserFromDB = async (
         .distinct("_id")
         .exec();
       if (prods.length === 0) {
-        return emptyOrdersPageMeta(query);
+        return emptyOrdersPageMeta<OrderCardDto>(query);
       }
       andParts.push({ "items.productId": { $in: prods } });
     }
@@ -633,31 +660,8 @@ const getOrdersForCurrentUserFromDB = async (
   return { data, meta };
 };
 
-/**
- * Full order document for buyer or seller — `userId` from JWT must match buyer (importer)
- * or own all line products (exporter). Deep-populates buyer, saved shipping ref, and products.
- */
-const getOrderByIdForViewerFromDB = async (
-  orderId: string,
-  viewerUserId: string,
-  activeRole: ActiveRole,
-) => {
-  if (activeRole === "ADMIN") {
-    throw new AppError("Forbidden", httpStatus.FORBIDDEN);
-  }
-
-  const orderLean = await OrderModel.findById(orderId).lean();
-  if (!orderLean) {
-    throw new AppError("Order not found", httpStatus.NOT_FOUND);
-  }
-
-  if (activeRole === "IMPORTER") {
-    assertImporterOwnsOrder(orderLean, viewerUserId);
-  } else {
-    await assertExporterOwnsAllOrderProductsForView(orderLean, viewerUserId);
-  }
-
-  const doc = await OrderModel.findById(orderId)
+const populateOrderDetailQuery = (orderId: string) =>
+  OrderModel.findById(orderId)
     .populate({
       path: "userId",
       select: "name email phone profileImage roles activeRole status",
@@ -692,6 +696,203 @@ const getOrderByIdForViewerFromDB = async (
     })
     .lean();
 
+const toIsoOrNull = (value: unknown): string | null => {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" && value.length > 0) return value;
+  return null;
+};
+
+const shapeAdminOrderListRows = (
+  orders: Record<string, unknown>[],
+): AdminOrderListRowDto[] =>
+  orders.map((raw) => {
+    const items = (raw.items as unknown[]) ?? [];
+    const firstItem =
+      items[0] && typeof items[0] === "object" && items[0] !== null
+        ? (items[0] as Record<string, unknown>)
+        : null;
+
+    let prod: Record<string, unknown> | null = null;
+    const productRef = firstItem?.productId;
+    if (productRef && typeof productRef === "object" && productRef !== null) {
+      prod = productRef as Record<string, unknown>;
+    }
+
+    const buyer =
+      raw.userId && typeof raw.userId === "object" && raw.userId !== null
+        ? (raw.userId as Record<string, unknown>)
+        : null;
+
+    let exporterName = "";
+    const sellerRef = prod?.userId;
+    if (sellerRef && typeof sellerRef === "object" && sellerRef !== null) {
+      const seller = sellerRef as Record<string, unknown>;
+      exporterName =
+        typeof seller.name === "string" ? seller.name.trim() : "";
+    }
+
+    const unitRaw = firstItem?.unitPrice;
+    const unitPrice =
+      typeof unitRaw === "number" ? unitRaw : Number(unitRaw) || 0;
+
+    const totalRaw = raw.totalAmount;
+    const totalPrice =
+      typeof totalRaw === "number" ? totalRaw : Number(totalRaw) || 0;
+
+    const productId =
+      prod?._id !== undefined
+        ? String(prod._id)
+        : firstItem?.productId !== undefined
+          ? String(firstItem.productId)
+          : "";
+
+    return {
+      orderId: String(raw._id),
+      orderCreatedAt: toIsoOrNull(raw.createdAt) ?? "",
+      productId,
+      productName: extractProductTitle(prod),
+      unitPrice,
+      totalPrice,
+      importerName:
+        buyer && typeof buyer.name === "string" ? buyer.name.trim() : "",
+      exporterName,
+      deliveryMaxAt: toIsoOrNull(raw.deliveryMaxAt),
+      status: raw.status as OrderStatus,
+    };
+  });
+
+/** Admin: all orders with pagination (QueryBuilder) + optional filters. */
+const getAllOrdersForAdminFromDB = async (
+  query: Record<string, unknown>,
+): Promise<{ data: AdminOrderListRowDto[]; meta: OrderListMeta }> => {
+  const paginationQuery = pickOrderListPaginationQuery(query);
+  const andParts: Record<string, unknown>[] = [];
+
+  const statusFilter =
+    typeof query.status === "string" ? query.status.trim() : undefined;
+  if (statusFilter) {
+    andParts.push({ status: statusFilter });
+  }
+
+  const orderDateRange = parseOrderDateUtcRange(query.orderDate);
+  if (orderDateRange) {
+    andParts.push({ createdAt: orderDateRange });
+  }
+
+  const orderIdFilter = parseOptionalObjectId(query.orderId);
+  if (orderIdFilter) {
+    andParts.push({ _id: orderIdFilter });
+  }
+
+  const productIdFilter = parseOptionalObjectId(query.productId);
+  if (productIdFilter) {
+    andParts.push({ "items.productId": productIdFilter });
+  }
+
+  const productNameFilter = parseOptionalTrimmedString(query.productName);
+  if (productNameFilter) {
+    const nameRx = new RegExp(escapeRegexChars(productNameFilter), "i");
+    const matchingIds = await Product.find({ productName: nameRx })
+      .distinct("_id")
+      .exec();
+    if (matchingIds.length === 0) {
+      return emptyOrdersPageMeta<AdminOrderListRowDto>(query);
+    }
+    andParts.push({ "items.productId": { $in: matchingIds } });
+  }
+
+  const userIdFilter = parseOptionalObjectId(query.userId);
+  if (userIdFilter) {
+    andParts.push({ userId: userIdFilter });
+  }
+
+  const userNameFilter = parseOptionalTrimmedString(query.userName);
+  if (userNameFilter) {
+    const nameRx = new RegExp(escapeRegexChars(userNameFilter), "i");
+    const matchedUsers = await User.find({ name: nameRx }).select("_id").lean();
+    const matchedUserIds = matchedUsers.map((u) => u._id);
+    if (matchedUserIds.length === 0) {
+      return emptyOrdersPageMeta<AdminOrderListRowDto>(query);
+    }
+    const importerOrders = { userId: { $in: matchedUserIds } };
+    const sellerProductIds = await Product.find({
+      userId: { $in: matchedUserIds },
+    })
+      .distinct("_id")
+      .exec();
+    const bySeller =
+      sellerProductIds.length > 0
+        ? { "items.productId": { $in: sellerProductIds } }
+        : null;
+    if (bySeller) {
+      andParts.push({ $or: [importerOrders, bySeller] });
+    } else {
+      andParts.push(importerOrders);
+    }
+  }
+
+  const matchFilter: Record<string, unknown> =
+    andParts.length === 0 ? {} : andParts.length === 1 ? andParts[0]! : { $and: andParts };
+
+  // Admin list is always newest-first; ignore client `sort` (price sort is UI-only).
+  const adminPaginationQuery = { ...paginationQuery };
+  delete adminPaginationQuery.sort;
+
+  const orderQB = new QueryBuilder(
+    OrderModel.find(matchFilter),
+    adminPaginationQuery,
+  )
+    .sort("-createdAt")
+    .paginate({ defaultLimit: 10, maxLimit: 100 });
+
+  const meta = await orderQB.countTotal();
+  const rawRows = (await orderQB.modelQuery
+    .populate({ path: "userId", select: "name" })
+    .populate({
+      path: "items.productId",
+      select: "productName userId",
+      populate: { path: "userId", select: "name" },
+    })
+    .lean()) as Record<string, unknown>[];
+
+  const data = shapeAdminOrderListRows(rawRows);
+  return { data, meta };
+};
+
+/** Admin: full order by id (populated). */
+const getOrderByIdForAdminFromDB = async (orderId: string) => {
+  const doc = await populateOrderDetailQuery(orderId);
+  if (!doc) {
+    throw new AppError("Order not found", httpStatus.NOT_FOUND);
+  }
+  return doc;
+};
+
+/**
+ * Full order document for buyer or seller — `userId` from JWT must match buyer (importer)
+ * or own all line products (exporter). Deep-populates buyer, saved shipping ref, and products.
+ */
+const getOrderByIdForViewerFromDB = async (
+  orderId: string,
+  viewerUserId: string,
+  activeRole: ActiveRole,
+) => {
+  if (activeRole === "ADMIN") {
+    throw new AppError("Forbidden", httpStatus.FORBIDDEN);
+  }
+
+  const orderLean = await OrderModel.findById(orderId).lean();
+  if (!orderLean) {
+    throw new AppError("Order not found", httpStatus.NOT_FOUND);
+  }
+
+  if (activeRole === "IMPORTER") {
+    assertImporterOwnsOrder(orderLean, viewerUserId);
+  } else {
+    await assertExporterOwnsAllOrderProductsForView(orderLean, viewerUserId);
+  }
+
+  const doc = await populateOrderDetailQuery(orderId);
   if (!doc) {
     throw new AppError("Order not found", httpStatus.NOT_FOUND);
   }
@@ -704,4 +905,6 @@ export const OrderService = {
   updateOrderStatusInDB,
   getOrdersForCurrentUserFromDB,
   getOrderByIdForViewerFromDB,
+  getAllOrdersForAdminFromDB,
+  getOrderByIdForAdminFromDB,
 };
