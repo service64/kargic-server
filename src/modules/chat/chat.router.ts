@@ -1,14 +1,23 @@
 import express from 'express';
 import { auth } from '../../middlewares/auth.middleware';
 import validateRequest from '../../middlewares/validateRequest';
+import { USER_ROLES } from '../../constants';
 import { ChatController } from './chat.controller';
 import {
+  dailyPeerAnalyticsQueryZodSchema,
   myPeersQueryZodSchema,
   peerUserMessagesQueryZodSchema,
   peerUserReadParamsZodSchema,
 } from './chat.validation';
 
 const router = express.Router();
+
+router.get(
+  '/analytics/daily-peers',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(dailyPeerAnalyticsQueryZodSchema),
+  ChatController.getDailyPeerAnalytics,
+);
 
 router.use(auth());
 

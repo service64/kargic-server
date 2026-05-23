@@ -17,6 +17,7 @@ import {
 import validateRequest from '../../../middlewares/validateRequest';
 import { authSessionManagement } from '../../../middlewares/authSessionManagement.middleware';
 import { auth } from '../../../middlewares/auth.middleware';
+import { USER_ROLES } from '../../../constants';
 
 const router = express.Router();
 
@@ -107,6 +108,13 @@ router.delete(
   auth(),
   validateRequest(softDeleteAccountZodSchema),
   UserController.softDeleteAccount,
+);
+
+//  site statistics routes — admin dashboard (authenticated API activity = “online”).
+router.get(
+  '/site-statistics',
+  auth(USER_ROLES.ADMIN),
+  UserController.getSiteStatistics,
 );
 
 export const UserRoutes = router;

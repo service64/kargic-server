@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { UserService } from './user.service';
+import { SiteStatisticsService } from './siteStatistics.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 import { setRefreshTokenCookie } from '../../../utils/refreshTokenCookie';
@@ -180,6 +181,11 @@ const getProfile = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const getSiteStatistics = catchAsync(async (_req: Request, res: Response) => {
+  const result = await SiteStatisticsService.getSiteStatistics();
+  return sendResponse(res, httpStatus.OK, 'Site statistics', result);
+});
+
 export const UserController = {
   createUser,
   verifyOtp,
@@ -197,4 +203,5 @@ export const UserController = {
   softDeleteAccount,
   getProfile,
   updateProfile,
+  getSiteStatistics,
 };

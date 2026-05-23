@@ -12,6 +12,7 @@ import { ConversationModel } from './conversation.model';
 import type { IConversationDoc } from './conversation.interface';
 import { ChatMessageModel } from './message.model';
 import type { ChatMessageType, IChatMessageDoc } from './message.interface';
+import { DailyPeerStatsService } from './dailyPeerStats/dailyPeerStats.service';
 
 const toOid = (id: string) => new Types.ObjectId(id);
 
@@ -443,6 +444,10 @@ const sendChatMessage = async (input: SendChatMessageInput) => {
       { $set: { lastMessageAt: new Date() } },
     ).exec(),
   ]);
+
+  void DailyPeerStatsService.recordSenderPeerActivity(senderId, peerUserId).catch(
+    () => {},
+  );
 
   let plain = saved.toObject() as unknown as Record<string, unknown>;
   plain = await attachImageUrlForClients(plain);

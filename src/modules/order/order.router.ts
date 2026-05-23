@@ -38,5 +38,6 @@ router.patch(
   validateRequest(orderStatusTransitionZodSchema),
   OrderController.updateOrderStatus,
 );
+//  get all orders for admin
 
 export const OrderRoutes = router;

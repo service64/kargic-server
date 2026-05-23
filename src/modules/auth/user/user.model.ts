@@ -98,4 +98,9 @@ userSchema.statics.isUserExistsByEmail = async function (email: string) {
   return this.findOne({ email }).select('+password');
 };
 
+/** Active-directory-style counts & online window queries. */
+userSchema.index({ lastApiActivityAt: 1, status: 1 });
+userSchema.index({ roles: 1, deletedAt: 1 });
+userSchema.index({ deletedAt: 1 });
+
 export const User = model<IUser, UserModel>('User', userSchema);
