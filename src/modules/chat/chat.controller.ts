@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { ChatService } from './chat.service';
+import { DailyPeerStatsService } from './dailyPeerStats/dailyPeerStats.service';
 
 const listMessagesWithPeer = catchAsync(async (req: Request, res: Response) => {
   const peerUserId = String(req.params.peerUserId);
@@ -31,8 +32,23 @@ const markThreadRead = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Read', result);
 });
 
+const getDailyPeerAnalytics = catchAsync(async (req: Request, res: Response) => {
+  const days =
+    req.query.days != null ? Number(req.query.days) : undefined;
+  const userId =
+    typeof req.query.userId === 'string' && req.query.userId.length > 0
+      ? req.query.userId
+      : undefined;
+  const result = await DailyPeerStatsService.getDailyPeerAnalytics({
+    days,
+    userId,
+  });
+  return sendResponse(res, httpStatus.OK, 'Daily peer analytics', result);
+});
+
 export const ChatController = {
   listMessagesWithPeer,
   listMyPeers,
   markThreadRead,
+  getDailyPeerAnalytics,
 };

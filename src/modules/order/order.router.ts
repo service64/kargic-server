@@ -1,8 +1,10 @@
 import express from 'express';
 import { auth } from '../../middlewares/auth.middleware';
 import validateRequest from '../../middlewares/validateRequest';
+import { USER_ROLES } from '../../constants';
 import { OrderController } from './order.controller';
 import {
+  adminGetOrdersQueryZodSchema,
   createOrderZodSchema,
   getOrdersQueryZodSchema,
   orderDetailsParamsZodSchema,
@@ -23,6 +25,20 @@ router.post(
   auth('IMPORTER'),
   validateRequest(createOrderZodSchema),
   OrderController.createOrder,
+);
+
+router.get(
+  '/admin',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminGetOrdersQueryZodSchema),
+  OrderController.getAllOrdersForAdmin,
+);
+
+router.get(
+  '/admin/:id',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(orderDetailsParamsZodSchema),
+  OrderController.getOrderByIdForAdmin,
 );
 
 router.get(

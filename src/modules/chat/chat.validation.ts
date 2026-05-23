@@ -24,3 +24,11 @@ export const peerUserReadParamsZodSchema = z.object({
     peerUserId: objectIdString,
   }),
 });
+
+/** Admin: platform-wide or per-user daily unique peer counts. */
+export const dailyPeerAnalyticsQueryZodSchema = z.object({
+  query: z.object({
+    days: z.coerce.number().int().positive().max(90).optional(),
+    userId: objectIdString.optional(),
+  }),
+});
