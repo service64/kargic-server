@@ -17,6 +17,7 @@ import { UserBlockRoutes } from './src/modules/userBlock/userBlock.router';
 import { SavedProductRoutes } from './src/modules/savedProduct/savedProduct.router';
 import { SavedExporterRoutes } from './src/modules/savedExporter/savedExporter.router';
 import { PredefinedMessageRoutes } from './src/modules/predefinedMessage/predefinedMessage.router';
+import { ReportRoutes } from './src/modules/report/report.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -74,6 +75,7 @@ app.use('/api/v1/chat', ChatRoutes);
 app.use('/api/v1/saved-product', SavedProductRoutes);
 app.use('/api/v1/saved-exporter', SavedExporterRoutes);
 app.use('/api/v1/predefined-message', PredefinedMessageRoutes);
+app.use('/api/v1/report', ReportRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------
