@@ -238,7 +238,7 @@ function trimPublicUser(u: Record<string, unknown>): PublicUserShape {
   if (!isExporter) {
     throw new AppError('Not an exporter account', httpStatus.NOT_FOUND);
   }
-  if (u.status && u.status !== 'ACTIVE') {
+  if (u.status && u.status !== 'ACTIVE' && u.status !== 'WARNING') {
     throw new AppError('User not available', httpStatus.NOT_FOUND);
   }
   return {
