@@ -29,6 +29,12 @@ router.get(
   auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
   ProductController.getMyProducts,
 );
+/** Auth user dashboard products — image, title, price, views count. */
+router.get(
+  '/dashboard-products',
+  auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
+  ProductController.getDashboardProducts,
+);
 /** Active products for a seller: only title, image, priceRange, stock per item. */
 router.get(
   '/user/:userId',
@@ -46,7 +52,7 @@ router.patch(
   validateRequest(updateProductZodSchema),
   ProductController.updateMyProduct,
 );
-
+router.patch('/:id/views-count', ProductController.updateProductViewsCount);
 router.delete(
   '/:id',
   auth(USER_ROLES.EXPORTER, USER_ROLES.ADMIN),
@@ -54,5 +60,4 @@ router.delete(
   ProductController.deleteMyProduct,
 );
 
-//  get product by userId user id get from jwt token
 export const ProductRoutes = router;

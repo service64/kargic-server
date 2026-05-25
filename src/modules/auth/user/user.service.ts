@@ -5,7 +5,7 @@ import { Types } from "mongoose";
 import AppError from "../../../errors/AppError";
 import config from "../../../config";
 import { afterSuccessLogin } from "../../../utils/afterSuccessLogin";
-import type { ActiveRole, IUser } from "./user.interface";
+import type { ActiveRole, IUser, UserStatus } from "./user.interface";
 import { User } from "./user.model";
 import { Admin } from "../admin/admin.model";
 import { Image } from "../../media/image.model";
@@ -331,7 +331,7 @@ const loginUser = async (
       httpStatus.FORBIDDEN,
     );
   }
-  if (user.status !== "ACTIVE") {
+  if (user.status === "BLOCKED" || user.status === "DELETED") {
     throw new AppError("Account is not active", httpStatus.FORBIDDEN);
   }
 
@@ -711,6 +711,18 @@ const getProfileFromDB = async (userId: string) => {
   return toPublicUser(user);
 };
 
+/** Importer/exporter: account status only (from JWT user id). */
+const getAccountStatusFromDB = async (userId: string) => {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new AppError("Invalid user id", httpStatus.BAD_REQUEST);
+  }
+  const user = await User.findById(userId).select("status").lean();
+  if (!user) {
+    throw new AppError("User not found", httpStatus.NOT_FOUND);
+  }
+  return { status: user.status };
+};
+
 const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload) => {
   const user = await User.findById(userId);
   if (!user || user.status !== "ACTIVE") {
@@ -756,6 +768,37 @@ const updateProfileIntoDB = async (userId: string, payload: UpdateProfilePayload
   return toPublicUser(user);
 };
 
+const updateUserStatusForAdmin = async (userId: string, status: UserStatus) => {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new AppError("Invalid user id", httpStatus.BAD_REQUEST);
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found", httpStatus.NOT_FOUND);
+  }
+
+  user.status = status;
+
+  if (status === "DELETED") {
+    user.deletedAt = user.deletedAt ?? new Date();
+    await LoginSessionService.deleteAllSessionsForUser(user._id);
+  } else {
+    user.deletedAt = undefined;
+    if (status === "BLOCKED") {
+      await LoginSessionService.deleteAllSessionsForUser(user._id);
+    }
+  }
+
+  await user.save();
+
+  return {
+    userId: String(user._id),
+    status: user.status,
+    deletedAt: user.deletedAt ?? null,
+  };
+};
+
 export const UserService = {
   createUserIntoDB,
   verifyOtp,
@@ -772,5 +815,7 @@ export const UserService = {
   changePassword,
   softDeleteAccount,
   getProfileFromDB,
+  getAccountStatusFromDB,
   updateProfileIntoDB,
+  updateUserStatusForAdmin,
 };

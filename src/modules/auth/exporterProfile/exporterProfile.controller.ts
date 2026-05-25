@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 import { ExporterProfileService } from './exporterProfile.service';
 import { CompanyVerificationService } from './companyVerification.service';
 import { AdminExporterListService } from './adminExporterList.service';
+import { AdminSellerVerificationService } from './adminSellerVerification.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 
@@ -132,6 +133,25 @@ const getExportersForAdmin = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getSellerVerificationForAdmin = catchAsync(
+  async (req: Request, res: Response) => {
+    const result =
+      await AdminSellerVerificationService.getSellerVerificationForAdminFromDB(
+        req.query as Record<string, unknown>,
+      );
+    return sendResponse(
+      res,
+      httpStatus.OK,
+      'Seller verification queue fetched successfully',
+      {
+        data: result.data,
+        meta: result.meta,
+        pipelineTotal: result.pipelineTotal,
+      },
+    );
+  },
+);
+
 export const ExporterProfileController = {
   createExporterProfile,
   getAllExporterProfiles,
@@ -145,4 +165,5 @@ export const ExporterProfileController = {
   updateExporterProfile,
   deleteExporterProfile,
   getExportersForAdmin,
+  getSellerVerificationForAdmin,
 };

@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import httpStatus from 'http-status';
+import type { UserStatus } from './user.interface';
 import { UserService } from './user.service';
 import { SiteStatisticsService } from './siteStatistics.service';
 import { AdminUserListService } from './adminUserList.service';
+import { AdminUserDetailsService } from './adminUserDetails.service';
 import sendResponse from '../../../utils/sendResponse';
 import catchAsync from '../../../utils/catchAsync';
 import { setRefreshTokenCookie } from '../../../utils/refreshTokenCookie';
@@ -182,6 +184,11 @@ const getProfile = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const getAccountStatus = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.getAccountStatusFromDB(req.user!.userId);
+  return sendResponse(res, httpStatus.OK, 'Account status', result);
+});
+
 const getSiteStatistics = catchAsync(async (_req: Request, res: Response) => {
   const result = await SiteStatisticsService.getSiteStatistics();
   return sendResponse(res, httpStatus.OK, 'Site statistics', result);
@@ -195,6 +202,22 @@ const getUsersForAdmin = catchAsync(async (req: Request, res: Response) => {
     data: result.data,
     meta: result.meta,
   });
+});
+
+const getUserDetailsForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params as { userId: string };
+  const result = await AdminUserDetailsService.getUserDetailsForAdminFromDB(userId);
+  return sendResponse(res, httpStatus.OK, 'User details fetched successfully', result);
+});
+
+const updateUserStatusForAdmin = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params as { userId: string };
+  const { status } = req.body as { status: string };
+  const result = await UserService.updateUserStatusForAdmin(
+    userId,
+    status as UserStatus,
+  );
+  return sendResponse(res, httpStatus.OK, 'User status updated successfully', result);
 });
 
 export const UserController = {
@@ -213,7 +236,10 @@ export const UserController = {
   changePassword,
   softDeleteAccount,
   getProfile,
+  getAccountStatus,
   updateProfile,
   getSiteStatistics,
   getUsersForAdmin,
+  getUserDetailsForAdmin,
+  updateUserStatusForAdmin,
 };

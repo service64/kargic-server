@@ -14,6 +14,8 @@ import {
   softDeleteAccountZodSchema,
   updateProfileZodSchema,
   adminGetUsersQueryZodSchema,
+  adminGetUserDetailsParamsZodSchema,
+  adminUpdateUserStatusZodSchema,
 } from './user.zod';
 import validateRequest from '../../../middlewares/validateRequest';
 import { authSessionManagement } from '../../../middlewares/authSessionManagement.middleware';
@@ -85,6 +87,13 @@ router.post(
   UserController.forgotPassword,
 );
 
+/** Importer/exporter: `{ status }` for the authenticated user (no id param). */
+router.get(
+  '/account-status',
+  auth(USER_ROLES.IMPORTER, USER_ROLES.EXPORTER),
+  UserController.getAccountStatus,
+);
+
 router.post(
   '/reset-password',
   validateRequest(resetPasswordZodSchema),
@@ -120,9 +129,23 @@ router.get(
 );
 
 router.get(
+  '/admin/:userId/details',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminGetUserDetailsParamsZodSchema),
+  UserController.getUserDetailsForAdmin,
+);
+router.patch(
+  '/admin/:userId/status',
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminUpdateUserStatusZodSchema),
+  UserController.updateUserStatusForAdmin,
+);
+
+router.get(
   '/site-statistics',
   auth(USER_ROLES.ADMIN),
   UserController.getSiteStatistics,
 );
+// this is only for admin to get the users data importer and exporter data
 
 export const UserRoutes = router;

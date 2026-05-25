@@ -4,6 +4,7 @@ import { IProduct } from './product.interface';
 const productSchema = new Schema<IProduct>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    viewsCount: { type: Number, default: 0, min: 0 },
     productName: { type: String, required: true, trim: true },
     hsCode: { type: String, required: true, trim: true },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },

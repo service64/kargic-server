@@ -32,6 +32,13 @@ const shapeAdminUserRows = (
     name: typeof raw.name === 'string' ? raw.name.trim() : '',
     email: typeof raw.email === 'string' ? raw.email.trim() : '',
     phone: typeof raw.phone === 'string' ? raw.phone.trim() : '',
+    status:
+      raw.status === 'ACTIVE' ||
+      raw.status === 'BLOCKED' ||
+      raw.status === 'DELETED' ||
+      raw.status === 'WARNING'
+        ? raw.status
+        : 'ACTIVE',
     image: extractProfileImageUrl(raw.profileImage),
   }));
 
@@ -71,7 +78,7 @@ const getUsersForAdminFromDB = async (query: Record<string, unknown>) => {
 
   const meta = await userQB.countTotal();
   const rawRows = (await userQB.modelQuery
-    .select('name email phone profileImage')
+    .select('name email phone status profileImage')
     .populate({ path: 'profileImage', select: 'url alt' })
     .lean()) as Record<string, unknown>[];
 
