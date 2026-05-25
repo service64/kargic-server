@@ -48,6 +48,22 @@ const getPublicMinimalProductsBySellerUserId = catchAsync(
   },
 );
 
+const getDashboardProducts = catchAsync(async (req: Request, res: Response) => {
+  const result = await ProductService.getDashboardProductsFromDB(req.user!.userId);
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Dashboard products retrieved successfully',
+    result,
+  );
+});
+
+const updateProductViewsCount = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params as { id: string };
+  const result = await ProductService.updateProductViewsCountInDB(id);
+  return sendResponse(res, httpStatus.OK, 'Product views count updated successfully', result);
+});
+
 const updateMyProduct = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const result = await ProductService.updateMyProductInDB(
@@ -75,6 +91,8 @@ export const ProductController = {
   getMyProducts,
   getProductBySlug,
   getPublicMinimalProductsBySellerUserId,
+  getDashboardProducts,
   updateMyProduct,
+  updateProductViewsCount,
   deleteMyProduct,
 };
