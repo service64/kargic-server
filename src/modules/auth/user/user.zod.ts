@@ -134,3 +134,22 @@ export const adminGetUsersQueryZodSchema = z.object({
     phone: z.string().trim().max(50).optional(),
   }),
 });
+
+/** GET `/admin/:userId/details` — fetch one user plus related collections. */
+export const adminGetUserDetailsParamsZodSchema = z.object({
+  params: z.object({
+    userId: objectIdString,
+  }),
+});
+
+const userStatusEnum = z.enum(['ACTIVE', 'BLOCKED', 'DELETED', 'WARNING']);
+
+/** PATCH `/admin/:userId/status` — admin updates account status. */
+export const adminUpdateUserStatusZodSchema = z.object({
+  params: z.object({
+    userId: objectIdString,
+  }),
+  body: z.object({
+    status: userStatusEnum,
+  }),
+});

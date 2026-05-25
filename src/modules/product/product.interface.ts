@@ -7,6 +7,7 @@ export interface IProduct {
     userId: Types.ObjectId;
     productName: string;
     hsCode: string;
+    viewsCount?:number;
     categoryId: Types.ObjectId;
     moq?: string;
     priceRange?: {

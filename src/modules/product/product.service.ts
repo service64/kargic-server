@@ -625,6 +625,15 @@ export type PublicSellerProductMinimalItem = {
   stock: number;
 };
 
+export type DashboardProductCardItem = {
+  id: string;
+  slug: string;
+  title: string;
+  image: string | null;
+  priceRange: { min?: number; max?: number } | null;
+  viewsCount: number;
+};
+
 /** Public: active products for a seller — only title, first image, priceRange, stock. */
 const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
   const oid = new Types.ObjectId(userId);
@@ -688,6 +697,65 @@ const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
   return data;
 };
 
+/** Auth user dashboard products — image, title, price, views count. */
+const getDashboardProductsFromDB = async (
+  userId: string,
+): Promise<DashboardProductCardItem[]> => {
+  const rows = await Product.find({ userId: new Types.ObjectId(userId) })
+    .select('_id productName priceRange productImages slug viewsCount')
+    .populate('productImages', 'url')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  return (rows as unknown as Record<string, unknown>[]).map((p) => {
+    const imgs = p.productImages as unknown[] | undefined;
+    let image: string | null = null;
+    if (Array.isArray(imgs) && imgs.length > 0) {
+      const first = imgs[0];
+      if (first && typeof first === 'object' && first !== null) {
+        const url = (first as { url?: string }).url;
+        if (typeof url === 'string' && url.length > 0) {
+          image = url;
+        }
+      }
+    }
+
+    const pr = p.priceRange;
+    const priceRange =
+      pr && typeof pr === 'object' && !Array.isArray(pr)
+        ? {
+            min:
+              typeof (pr as { min?: unknown }).min === 'number'
+                ? (pr as { min: number }).min
+                : undefined,
+            max:
+              typeof (pr as { max?: unknown }).max === 'number'
+                ? (pr as { max: number }).max
+                : undefined,
+          }
+        : null;
+
+    const hasBand =
+      priceRange &&
+      (priceRange.min !== undefined || priceRange.max !== undefined);
+
+    const _id = p._id as Types.ObjectId | string | undefined;
+    const id = _id !== undefined ? String(_id) : '';
+
+    return {
+      id,
+      slug: typeof p.slug === 'string' ? p.slug : '',
+      title: String(p.productName ?? ''),
+      image,
+      priceRange: hasBand ? priceRange : null,
+      viewsCount:
+        typeof p.viewsCount === 'number' && Number.isFinite(p.viewsCount)
+          ? p.viewsCount
+          : 0,
+    };
+  });
+};
+
 const getMyProductsFromDB = async (
   userId: string,
   query: Record<string, unknown>,
@@ -715,13 +783,21 @@ const getMyProductsFromDB = async (
   return { data, meta };
 };
 
+
+const updateProductViewsCountInDB = async (id: string) => {
+  const product = await Product.findByIdAndUpdate(id, { $inc: { viewsCount: 1 } }, { new: true });
+  return product;
+};
+
 export const ProductService = {
   createProductIntoDB,
   getAllProductsFromDB,
   getMyProductsFromDB,
   getPublicMinimalProductsBySellerUserIdFromDB,
+  getDashboardProductsFromDB,
   getProductByIdFromDB,
   getProductBySlugFromDB,
   updateMyProductInDB,
   deleteMyProductFromDB,
+  updateProductViewsCountInDB,
 };
