@@ -84,3 +84,19 @@ export const adminGetExportersQueryZodSchema = z.object({
     companyName: z.string().trim().max(200).optional(),
   }),
 });
+
+const sellerVerificationStatusEnum = z.enum([
+  'Reviewing',
+  'Verified',
+  'Flagged',
+]);
+
+/** GET `/admin/seller-verification` — admin seller verification queue. */
+export const adminSellerVerificationQueryZodSchema = z.object({
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().max(50).optional(),
+    search: z.string().trim().max(200).optional(),
+    status: sellerVerificationStatusEnum.optional(),
+  }),
+});

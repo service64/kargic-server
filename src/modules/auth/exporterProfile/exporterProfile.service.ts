@@ -8,7 +8,55 @@ import type { CompanyType, EmployeeCount } from '../../../type/common.type';
 import { generateSlug } from '../../../utils/generateSlug';
 import { IExporterProfile } from './exporterProfile.interface';
 import { Product } from '../../product/product.model';
+import { Image } from '../../media/image.model';
 import { populateCompanyVerificationImages } from './companyVerification.service';
+
+const MEDIA_REF_SELECT = 'url alt';
+
+async function resolveMediaRef(value: unknown): Promise<unknown> {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'object' && value !== null && 'url' in value) {
+    return value;
+  }
+  const id = String(value);
+  if (!Types.ObjectId.isValid(id)) return null;
+  const img = await Image.findById(id).select(MEDIA_REF_SELECT).lean();
+  return img ?? { _id: new Types.ObjectId(id), url: null };
+}
+
+/** Admin user-details: logo, banners, and nested verification certificate images. */
+export const shapeExporterProfileForAdminDetails = async (
+  raw: Record<string, unknown> | null,
+): Promise<Record<string, unknown> | null> => {
+  if (!raw) return null;
+
+  const legacy = raw.bannerUrl;
+  const legacyArr = Array.isArray(legacy) ? legacy : null;
+
+  const [logoUrl, banner0, banner1, banner2] = await Promise.all([
+    resolveMediaRef(raw.logoUrl),
+    resolveMediaRef(raw.banner0 ?? legacyArr?.[0] ?? null),
+    resolveMediaRef(raw.banner1 ?? legacyArr?.[1] ?? null),
+    resolveMediaRef(raw.banner2 ?? legacyArr?.[2] ?? null),
+  ]);
+
+  let companyVerification = raw.companyVerification;
+  if (companyVerification && typeof companyVerification === 'object') {
+    companyVerification = await populateCompanyVerificationImages(
+      JSON.parse(JSON.stringify(companyVerification)) as Record<string, unknown>,
+    );
+  }
+
+  const { bannerUrl: _legacy, ...rest } = raw;
+  return {
+    ...rest,
+    logoUrl,
+    banner0,
+    banner1,
+    banner2,
+    companyVerification,
+  };
+};
 
 type CreatePayload = {
   userId: string;

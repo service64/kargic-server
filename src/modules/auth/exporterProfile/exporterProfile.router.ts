@@ -2,6 +2,7 @@ import express from "express";
 import { ExporterProfileController } from "./exporterProfile.controller";
 import {
   adminGetExportersQueryZodSchema,
+  adminSellerVerificationQueryZodSchema,
   createExporterProfileZodSchema,
   exporterProfileIdParamZodSchema,
   exporterUserIdParamZodSchema,
@@ -81,6 +82,14 @@ router.get(
   "/user/:userId",
   validateRequest(exporterUserIdParamZodSchema),
   ExporterProfileController.getPublicExporterDetailByUserId,
+);
+
+/** Admin: seller verification queue from exporter profiles. */
+router.get(
+  "/admin/seller-verification",
+  auth(USER_ROLES.ADMIN),
+  validateRequest(adminSellerVerificationQueryZodSchema),
+  ExporterProfileController.getSellerVerificationForAdmin,
 );
 
 router.patch(
