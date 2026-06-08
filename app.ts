@@ -18,6 +18,7 @@ import { SavedProductRoutes } from './src/modules/savedProduct/savedProduct.rout
 import { SavedExporterRoutes } from './src/modules/savedExporter/savedExporter.router';
 import { PredefinedMessageRoutes } from './src/modules/predefinedMessage/predefinedMessage.router';
 import { ReportRoutes } from './src/modules/report/report.router';
+import { ContactRoutes } from './src/modules/contact/contact.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -76,6 +77,7 @@ app.use('/api/v1/saved-product', SavedProductRoutes);
 app.use('/api/v1/saved-exporter', SavedExporterRoutes);
 app.use('/api/v1/predefined-message', PredefinedMessageRoutes);
 app.use('/api/v1/report', ReportRoutes);
+app.use('/api/v1/contact', ContactRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------
