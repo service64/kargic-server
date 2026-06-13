@@ -22,4 +22,6 @@ export interface IExportBlog {
   publishedAt?: Date | null;
   isFeatured?: boolean;
   seo?: IExportBlogSeo;
+  /** Set when publish notification emails have been sent to active users. */
+  publishNotificationSentAt?: Date | null;
 }

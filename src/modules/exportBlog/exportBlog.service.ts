@@ -4,6 +4,7 @@ import AppError from '../../errors/AppError';
 import { Image } from '../media/image.model';
 import { IExportBlog } from './exportBlog.interface';
 import { ExportBlog } from './exportBlog.model';
+import { scheduleBlogPublishNotifications } from './exportBlog.notification';
 
 type CreatePayload = {
   authorId: string;
@@ -111,7 +112,13 @@ const createExportBlogIntoDB = async (payload: CreatePayload) => {
     blogData.publishedAt = new Date();
   }
 
-  return ExportBlog.create(blogData);
+  const created = await ExportBlog.create(blogData);
+
+  if (status === 'published') {
+    scheduleBlogPublishNotifications(String(created._id));
+  }
+
+  return created;
 };
 
 const getPublishedBlogsFromDB = async () => {
@@ -218,6 +225,8 @@ const updateBlogInDB = async (id: string, body: Record<string, unknown>) => {
     }
   }
 
+  const wasPublished = blog.status === 'published';
+
   if (body.status === 'published' && blog.status !== 'published') {
     blog.status = 'published';
     blog.publishedAt = new Date();
@@ -227,7 +236,13 @@ const updateBlogInDB = async (id: string, body: Record<string, unknown>) => {
   }
 
   await blog.save();
-  return blog.populate(populateOptions);
+  const populated = await blog.populate(populateOptions);
+
+  if (!wasPublished && populated.status === 'published') {
+    scheduleBlogPublishNotifications(String(populated._id));
+  }
+
+  return populated;
 };
 
 const publishBlogInDB = async (id: string) => {
@@ -235,10 +250,18 @@ const publishBlogInDB = async (id: string) => {
   if (!blog) {
     throw new AppError('Blog not found', httpStatus.NOT_FOUND);
   }
+
+  const wasPublished = blog.status === 'published';
   blog.status = 'published';
   blog.publishedAt = new Date();
   await blog.save();
-  return blog.populate(populateOptions);
+  const populated = await blog.populate(populateOptions);
+
+  if (!wasPublished) {
+    scheduleBlogPublishNotifications(String(populated._id));
+  }
+
+  return populated;
 };
 
 const unpublishBlogInDB = async (id: string) => {
@@ -248,6 +271,7 @@ const unpublishBlogInDB = async (id: string) => {
   }
   blog.status = 'draft';
   blog.publishedAt = null;
+  blog.publishNotificationSentAt = null;
   await blog.save();
   return blog.populate(populateOptions);
 };

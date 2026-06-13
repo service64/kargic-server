@@ -58,4 +58,11 @@ export default {
   /** Allowed browser origins for credentialed CORS (`credentials: 'include'`). */
   cors_origins:
     corsOriginsFromEnv.length > 0 ? corsOriginsFromEnv : defaultCorsOrigins,
+
+  /** Public site base URL for links in emails (no trailing slash). */
+  frontend_base_url: (
+    process.env.FRONTEND_BASE_URL || 'http://localhost:3000'
+  ).replace(/\/$/, ''),
+  /** Default locale segment in blog URLs sent by email. */
+  blog_email_default_locale: process.env.BLOG_EMAIL_DEFAULT_LOCALE || 'en',
 };
