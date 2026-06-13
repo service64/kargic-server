@@ -62,5 +62,6 @@ const productSchema = new Schema<IProduct>(
 );
 
 productSchema.index({ userId: 1, categoryId: 1 });
+productSchema.index({ status: 1, productName: 1 });
 
 export const Product = model<IProduct>('Product', productSchema);

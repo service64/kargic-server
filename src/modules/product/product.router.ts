@@ -6,6 +6,7 @@ import { ProductController } from './product.controller';
 import {
   createProductZodSchema,
   productIdParamZodSchema,
+  productSearchQueryZodSchema,
   productSellerUserIdParamZodSchema,
   productSlugParamZodSchema,
   updateProductZodSchema,
@@ -40,6 +41,11 @@ router.get(
   '/user/:userId',
   validateRequest(productSellerUserIdParamZodSchema),
   ProductController.getPublicMinimalProductsBySellerUserId,
+);
+router.get(
+  '/search',
+  validateRequest(productSearchQueryZodSchema),
+  ProductController.searchProducts,
 );
 router.get(
   '/:slug',
