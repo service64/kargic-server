@@ -70,6 +70,18 @@ export const productSellerUserIdParamZodSchema = z.object({
   query: z.any().optional(),
 });
 
+/** Hero / autocomplete: `GET /search?q=...` — min 3 chars, title match, top 10. */
+export const productSearchQueryZodSchema = z.object({
+  query: z.object({
+    q: z
+      .string()
+      .trim()
+      .min(3, 'Search query must be at least 3 characters')
+      .max(100),
+  }),
+  body: z.any().optional(),
+});
+
 /** Public detail route: `GET /:slug` (not Mongo `_id`). */
 export const productSlugParamZodSchema = z.object({
   params: z.object({
