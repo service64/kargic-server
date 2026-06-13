@@ -113,6 +113,12 @@ router.post(
   UserController.superAdminLogin,
 );
 
+router.get(
+  '/account/deletion-eligibility',
+  auth(USER_ROLES.IMPORTER, USER_ROLES.EXPORTER),
+  UserController.getAccountDeletionEligibility,
+);
+
 router.delete(
   '/account',
   auth(),
