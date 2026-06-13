@@ -16,6 +16,10 @@ import {
 } from "../loginSession/loginSession.service";
 import { generateOTP, sendEmail } from "../../../utils/sendEmail";
 import { signSessionManagementToken } from "../../../utils/sessionManagementToken";
+import {
+  getRunningOrderBlockersForUser,
+  getAccountDeletionEligibilityFromDB,
+} from "./accountDeletion.service";
 
 type CreateUserBody = Pick<IUser, "name" | "age" | "phone" | "email" | "password"> & {
   activeRole?: ActiveRole;
@@ -331,8 +335,19 @@ const loginUser = async (
       httpStatus.FORBIDDEN,
     );
   }
-  if (user.status === "BLOCKED" || user.status === "DELETED") {
-    throw new AppError("Account is not active", httpStatus.FORBIDDEN);
+  if (user.status === "DELETED") {
+    throw new AppError(
+      "This account has been deactivated",
+      httpStatus.FORBIDDEN,
+      "ACCOUNT_DELETED",
+    );
+  }
+  if (user.status === "BLOCKED") {
+    throw new AppError(
+      "This account has been blocked",
+      httpStatus.FORBIDDEN,
+      "ACCOUNT_BLOCKED",
+    );
   }
 
   const match = await bcrypt.compare(password, user.password);
@@ -674,7 +689,20 @@ const softDeleteAccount = async (userId: string, password: string) => {
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
-    throw new AppError("Invalid password", httpStatus.UNAUTHORIZED);
+    throw new AppError(
+      "Invalid password",
+      httpStatus.BAD_REQUEST,
+      "INVALID_PASSWORD",
+    );
+  }
+
+  const runningOrders = await getRunningOrderBlockersForUser(userId);
+  if (runningOrders.length > 0) {
+    throw new AppError(
+      "Cannot delete account while you have active orders. Complete or cancel them first.",
+      httpStatus.CONFLICT,
+      "RUNNING_ORDERS_BLOCK_DELETE",
+    );
   }
 
   user.status = "DELETED";
@@ -683,7 +711,15 @@ const softDeleteAccount = async (userId: string, password: string) => {
 
   await LoginSessionService.deleteAllSessionsForUser(user._id);
 
-  return { deleted: true as const };
+  return { deleted: true as const, softDelete: true as const };
+};
+
+const getAccountDeletionEligibility = async (userId: string) => {
+  const user = await User.findById(userId).select("status");
+  if (!user || user.status !== "ACTIVE") {
+    throw new AppError("User not found", httpStatus.NOT_FOUND);
+  }
+  return getAccountDeletionEligibilityFromDB(userId);
 };
 
 type UpdateProfilePayload = {
@@ -814,6 +850,7 @@ export const UserService = {
   resetPasswordWithOtp,
   changePassword,
   softDeleteAccount,
+  getAccountDeletionEligibility,
   getProfileFromDB,
   getAccountStatusFromDB,
   updateProfileIntoDB,

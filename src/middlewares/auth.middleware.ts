@@ -85,7 +85,27 @@ export const auth =
         if (!sessionOk) {
           throw new AppError('Session ended. Please log in again.', httpStatus.UNAUTHORIZED);
         }
-      } 
+      }
+
+      const userDoc = await User.findById(decoded.userId).select('status').lean();
+      if (!userDoc) {
+        throw new AppError('Unauthorized', httpStatus.UNAUTHORIZED);
+      }
+      if (userDoc.status === 'DELETED') {
+        throw new AppError(
+          'This account has been deactivated',
+          httpStatus.FORBIDDEN,
+          'ACCOUNT_DELETED',
+        );
+      }
+      if (userDoc.status === 'BLOCKED') {
+        throw new AppError(
+          'This account has been blocked',
+          httpStatus.FORBIDDEN,
+          'ACCOUNT_BLOCKED',
+        );
+      }
+
       req.user = {
         userId: decoded.userId,
         email: decoded.email,

@@ -23,7 +23,14 @@ const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
     req.user!.activeRole,
     req.body.status,
   );
-  return sendResponse(res, httpStatus.OK, 'Order status updated', result);
+  const message =
+    result &&
+    typeof result === 'object' &&
+    'deleted' in result &&
+    (result as { deleted?: boolean }).deleted
+      ? 'Order closed and removed'
+      : 'Order status updated';
+  return sendResponse(res, httpStatus.OK, message, result);
 });
 
 const getMyOrders = catchAsync(async (req: Request, res: Response) => {

@@ -252,7 +252,7 @@ const transitionOrderStatusInDB = async (
 
 type CancelActorRole = "IMPORTER" | "EXPORTER";
 
-/** Only before confirmed (`awaiting_exporter_approval`); importer or exporter. */
+/** Only before confirmed (`awaiting_exporter_approval`); importer or exporter — order is removed from DB. */
 const cancelAwaitingOrderInDB = async (
   orderId: string,
   actorUserId: string,
@@ -264,7 +264,7 @@ const cancelAwaitingOrderInDB = async (
   }
   if (order.status !== "awaiting_exporter_approval") {
     throw new AppError(
-      "Order can only be cancelled before it is confirmed",
+      "Order can only be closed before it is confirmed",
       httpStatus.BAD_REQUEST,
     );
   }
@@ -274,16 +274,12 @@ const cancelAwaitingOrderInDB = async (
     await assertExporterOwnsAllOrderProducts(order, actorUserId);
   }
 
-  const updated = await OrderModel.findByIdAndUpdate(
-    orderId,
-    { $set: { status: "cancelled" as const } },
-    { returnDocument: "after", runValidators: true },
-  ).lean();
-
-  if (!updated) {
+  const deleted = await OrderModel.findByIdAndDelete(orderId).lean();
+  if (!deleted) {
     throw new AppError("Order not found", httpStatus.NOT_FOUND);
   }
-  return updated;
+
+  return { deleted: true as const, orderId: String(deleted._id) };
 };
 
 /**
