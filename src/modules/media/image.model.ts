@@ -25,6 +25,7 @@ const imageSchema = new Schema<IImage>(
         'BANNER',
         'MESSAGE',
         'VERIFICATION',
+        'BLOG',
       ],
       required: true,
     },

@@ -7,7 +7,8 @@ export type IUseCase =
   | 'USER'
   | 'BANNER'
   | 'MESSAGE'
-  | 'VERIFICATION';
+  | 'VERIFICATION'
+  | 'BLOG';
 export interface IImage {
   _id?: Types.ObjectId;
   userId?: Types.ObjectId;

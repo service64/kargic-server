@@ -16,6 +16,7 @@ export const uploadImageSchema = z.object({
       'BANNER',
       'MESSAGE',
       'VERIFICATION',
+      'BLOG',
     ]),
   }),
 });
