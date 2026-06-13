@@ -119,9 +119,16 @@ router.get(
   UserController.getAccountDeletionEligibility,
 );
 
+router.post(
+  '/account/soft-delete',
+  auth(USER_ROLES.IMPORTER, USER_ROLES.EXPORTER),
+  validateRequest(softDeleteAccountZodSchema),
+  UserController.softDeleteAccount,
+);
+
 router.delete(
   '/account',
-  auth(),
+  auth(USER_ROLES.IMPORTER, USER_ROLES.EXPORTER),
   validateRequest(softDeleteAccountZodSchema),
   UserController.softDeleteAccount,
 );

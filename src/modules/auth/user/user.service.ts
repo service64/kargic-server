@@ -335,8 +335,19 @@ const loginUser = async (
       httpStatus.FORBIDDEN,
     );
   }
-  if (user.status === "BLOCKED" || user.status === "DELETED") {
-    throw new AppError("Account is not active", httpStatus.FORBIDDEN);
+  if (user.status === "DELETED") {
+    throw new AppError(
+      "This account has been deactivated",
+      httpStatus.FORBIDDEN,
+      "ACCOUNT_DELETED",
+    );
+  }
+  if (user.status === "BLOCKED") {
+    throw new AppError(
+      "This account has been blocked",
+      httpStatus.FORBIDDEN,
+      "ACCOUNT_BLOCKED",
+    );
   }
 
   const match = await bcrypt.compare(password, user.password);
@@ -676,6 +687,15 @@ const softDeleteAccount = async (userId: string, password: string) => {
     throw new AppError("User not found", httpStatus.NOT_FOUND);
   }
 
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) {
+    throw new AppError(
+      "Invalid password",
+      httpStatus.BAD_REQUEST,
+      "INVALID_PASSWORD",
+    );
+  }
+
   const runningOrders = await getRunningOrderBlockersForUser(userId);
   if (runningOrders.length > 0) {
     throw new AppError(
@@ -683,11 +703,6 @@ const softDeleteAccount = async (userId: string, password: string) => {
       httpStatus.CONFLICT,
       "RUNNING_ORDERS_BLOCK_DELETE",
     );
-  }
-
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) {
-    throw new AppError("Invalid password", httpStatus.UNAUTHORIZED);
   }
 
   user.status = "DELETED";
