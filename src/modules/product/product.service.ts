@@ -789,6 +789,61 @@ const updateProductViewsCountInDB = async (id: string) => {
   return product;
 };
 
+const escapeRegexChars = (s: string) =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export type ProductSearchSuggestionItem = {
+  thumbnailImageUrl: string | null;
+  title: string;
+  slug: string;
+};
+
+/** Fast title autocomplete — active products only, top 10, minimal fields. */
+const searchProductsByTitleFromDB = async (
+  query: string,
+): Promise<ProductSearchSuggestionItem[]> => {
+  const trimmed = query.trim();
+  if (trimmed.length < 3) {
+    return [];
+  }
+
+  const namePattern = new RegExp(escapeRegexChars(trimmed), 'i');
+
+  const rows = await Product.find({
+    status: 'active',
+    productName: namePattern,
+  })
+    .select('productName slug productImages')
+    .populate({
+      path: 'productImages',
+      select: 'url',
+      options: { perDocumentLimit: 1 },
+    })
+    .sort({ updatedAt: -1 })
+    .limit(10)
+    .lean();
+
+  return (rows as unknown as Record<string, unknown>[]).map((p) => {
+    const imgs = p.productImages as unknown[] | undefined;
+    let thumbnailImageUrl: string | null = null;
+    if (Array.isArray(imgs) && imgs.length > 0) {
+      const first = imgs[0];
+      if (first && typeof first === 'object' && first !== null) {
+        const url = (first as { url?: string }).url;
+        if (typeof url === 'string' && url.length > 0) {
+          thumbnailImageUrl = url;
+        }
+      }
+    }
+
+    return {
+      thumbnailImageUrl,
+      title: String(p.productName ?? ''),
+      slug: typeof p.slug === 'string' ? p.slug : '',
+    };
+  });
+};
+
 export const ProductService = {
   createProductIntoDB,
   getAllProductsFromDB,
@@ -800,4 +855,5 @@ export const ProductService = {
   updateMyProductInDB,
   deleteMyProductFromDB,
   updateProductViewsCountInDB,
+  searchProductsByTitleFromDB,
 };

@@ -58,6 +58,12 @@ const getDashboardProducts = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const searchProducts = catchAsync(async (req: Request, res: Response) => {
+  const { q } = req.query as { q: string };
+  const result = await ProductService.searchProductsByTitleFromDB(q);
+  return sendResponse(res, httpStatus.OK, 'Products search completed', result);
+});
+
 const updateProductViewsCount = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
   const result = await ProductService.updateProductViewsCountInDB(id);
@@ -92,6 +98,7 @@ export const ProductController = {
   getProductBySlug,
   getPublicMinimalProductsBySellerUserId,
   getDashboardProducts,
+  searchProducts,
   updateMyProduct,
   updateProductViewsCount,
   deleteMyProduct,
