@@ -52,6 +52,10 @@ const exportBlogSchema = new Schema<IExportBlog>(
       type: Boolean,
       default: false,
     },
+    publishNotificationSentAt: {
+      type: Date,
+      default: null,
+    },
     seo: {
       title: { type: String, trim: true },
       description: { type: String, trim: true },
