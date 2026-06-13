@@ -154,8 +154,22 @@ const softDeleteAccount = catchAsync(async (req: Request, res: Response) => {
     req.user!.userId,
     password,
   );
-  return sendResponse(res, httpStatus.OK, 'Account deleted', result);
+  return sendResponse(res, httpStatus.OK, 'Account deactivated successfully', result);
 });
+
+const getAccountDeletionEligibility = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await UserService.getAccountDeletionEligibility(
+      req.user!.userId,
+    );
+    return sendResponse(
+      res,
+      httpStatus.OK,
+      'Account deletion eligibility',
+      result,
+    );
+  },
+);
 
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
   const { name, phone, age, activeRole, profileImage } = req.body;
@@ -235,6 +249,7 @@ export const UserController = {
   resetPassword,
   changePassword,
   softDeleteAccount,
+  getAccountDeletionEligibility,
   getProfile,
   getAccountStatus,
   updateProfile,
