@@ -18,6 +18,8 @@ export interface IProduct {
     productionLeadTime?: string;
     supplyCapacity?: string;
     productImages: Types.ObjectId[];
+    /** Denormalized URL of the first product image — for fast list/search reads. */
+    thumbnailImageUrl?: string;
     slug?: string;
   
     // 🔥 NEW FIELDS
