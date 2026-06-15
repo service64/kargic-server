@@ -113,6 +113,30 @@ const assertImagesExist = async (imageIds: string[]) => {
   }
 };
 
+/** First image id → public URL; used to keep `thumbnailImageUrl` in sync. */
+const resolveThumbnailUrlFromImageIds = async (
+  imageIds: Array<string | Types.ObjectId>,
+): Promise<string | undefined> => {
+  const firstId = imageIds[0];
+  if (!firstId) return undefined;
+
+  const doc = await Image.findById(firstId).select('url').lean();
+  const url = doc?.url;
+  return typeof url === 'string' && url.length > 0 ? url : undefined;
+};
+
+const syncProductThumbnail = async (product: {
+  productImages?: Types.ObjectId[];
+  thumbnailImageUrl?: string;
+}) => {
+  const ids = product.productImages ?? [];
+  if (ids.length === 0) {
+    product.thumbnailImageUrl = undefined;
+    return;
+  }
+  product.thumbnailImageUrl = await resolveThumbnailUrlFromImageIds(ids);
+};
+
 const exporterExists = async (userId: string) => {
   const user = await User.findById(new Types.ObjectId(userId));
   if (!user || user.activeRole !== 'EXPORTER' || user?.status !== 'ACTIVE') {
@@ -200,6 +224,8 @@ const createProductIntoDB = async (payload: CreatePayload) => {
     }
     productData.seo = seoData;
   }
+
+  await syncProductThumbnail(productData);
 
   return Product.create(productData);
 };
@@ -371,6 +397,8 @@ const updateMyProductInDB = async (
   if (ownerBrandId) product.brand = ownerBrandId;
   else product.brand = undefined;
 
+  await syncProductThumbnail(product);
+
   await product.save();
 
   return getProductByIdFromDB(id);
@@ -424,51 +452,38 @@ const deleteMyProductFromDB = async (
   return { deleted: true as const };
 };
 
-type ShapeProductListOptions = {
-  omitCategoryId?: boolean;
-  omitTags?: boolean;
+
+export type PublicProductCardItem = {
+  id: string;
+  sellerUserId: string;
+  productName: string;
+  categoryName: string;
+  priceRange?: { min: number; max: number };
+  thumbnailImageUrl: string | null;
+  slug: string;
+  status?: 'draft' | 'active' | 'inactive';
+  isFeatured: boolean;
 };
 
-const shapeProductListData = (
+const shapePublicProductCardData = (
   products: unknown[],
-  options?: ShapeProductListOptions,
-) => {
+): PublicProductCardItem[] => {
   return products.map((product) => {
-    const raw = product as {
-      _id?: Types.ObjectId;
-      updatedAt?: Date;
-    };
-    const id = raw._id ? String(raw._id) : '';
-
+    const raw = product as { _id?: Types.ObjectId };
     const productObj = product as {
       userId?: Types.ObjectId;
       productName?: string;
-      hsCode?: string;
       categoryId?:
         | { _id?: Types.ObjectId; categoryName?: string }
         | Types.ObjectId;
       priceRange?: { min: number; max: number };
-      productImages?: Array<
-        { _id?: Types.ObjectId; url?: string } | Types.ObjectId | null
-      >;
+      thumbnailImageUrl?: string;
       slug?: string;
-      tags?: Array<string | Types.ObjectId | { _id?: Types.ObjectId }>;
       status?: 'draft' | 'active' | 'inactive';
       isFeatured?: boolean;
-      views?: number;
-      rating?: number;
-      totalReviews?: number;
     };
 
     const populatedCategory = productObj.categoryId;
-    const populatedImages = productObj.productImages;
-
-    const categoryId = populatedCategory
-      ? typeof populatedCategory === 'object' && '_id' in populatedCategory
-        ? String(populatedCategory._id)
-        : String(populatedCategory)
-      : '';
-
     const categoryName =
       populatedCategory &&
       typeof populatedCategory === 'object' &&
@@ -477,55 +492,76 @@ const shapeProductListData = (
         ? populatedCategory.categoryName
         : '';
 
-    const productImages = Array.isArray(populatedImages)
-      ? populatedImages
-          .map((image) => {
-            if (!image || typeof image !== 'object' || !('url' in image)) {
-              return null;
-            }
-            const url = (image as { url?: string }).url;
-            return typeof url === 'string' && url !== '' ? url : null;
-          })
-          .filter((u): u is string => u !== null)
-      : [];
+    const thumb = productObj.thumbnailImageUrl;
+    const thumbnailImageUrl =
+      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
 
-    const tagIds =
-      options?.omitTags || !Array.isArray(productObj.tags)
-        ? []
-        : productObj.tags.map((t) => {
-            if (t && typeof t === 'object' && '_id' in t) {
-              return String((t as { _id?: Types.ObjectId })._id);
-            }
-            return String(t);
-          });
-
-    const row: Record<string, unknown> = {
-      id,
+    return {
+      id: raw._id ? String(raw._id) : '',
       sellerUserId: productObj.userId ? String(productObj.userId) : '',
+      productName: String(productObj.productName ?? ''),
+      categoryName,
+      priceRange: productObj.priceRange,
+      thumbnailImageUrl,
+      slug: typeof productObj.slug === 'string' ? productObj.slug : '',
+      status: productObj.status,
+      isFeatured: productObj.isFeatured ?? false,
+    };
+  });
+};
+
+const shapeMyProductListData = (products: unknown[]) => {
+  return products.map((product) => {
+    const raw = product as {
+      _id?: Types.ObjectId;
+      updatedAt?: Date;
+    };
+    const productObj = product as {
+      productName?: string;
+      hsCode?: string;
+      categoryId?:
+        | { _id?: Types.ObjectId; categoryName?: string }
+        | Types.ObjectId;
+      priceRange?: { min: number; max: number };
+      slug?: string;
+      status?: 'draft' | 'active' | 'inactive';
+    };
+
+    const populatedCategory = productObj.categoryId;
+    const categoryName =
+      populatedCategory &&
+      typeof populatedCategory === 'object' &&
+      'categoryName' in populatedCategory &&
+      typeof populatedCategory.categoryName === 'string'
+        ? populatedCategory.categoryName
+        : '';
+
+    return {
+      id: raw._id ? String(raw._id) : '',
       productName: productObj.productName,
       hsCode: productObj.hsCode,
       categoryName,
       priceRange: productObj.priceRange,
-      productImages,
       slug: productObj.slug,
       status: productObj.status,
-      isFeatured: productObj.isFeatured ?? false,
-      views: productObj.views ?? 0,
-      rating: productObj.rating ?? 0,
-      totalReviews: productObj.totalReviews ?? 0,
       updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : '',
     };
-
-    if (!options?.omitCategoryId) {
-      row.categoryId = categoryId;
-    }
-    if (!options?.omitTags) {
-      row.tags = tagIds;
-    }
-
-    return row;
   });
 };
+
+const buildPublicProductListQuery = (
+  baseQuery: ReturnType<typeof Product.find>,
+  query: Record<string, unknown>,
+  extraExcludeFields: string[] = [],
+) =>
+  new QueryBuilder(baseQuery, query)
+    .search(['productName', 'hsCode', 'slug'])
+    .filter(extraExcludeFields)
+    .sort()
+    .fields(
+      'userId productName categoryId priceRange thumbnailImageUrl slug status isFeatured',
+    )
+    .paginate({ defaultLimit: 10, maxLimit: 100 });
 
 const buildProductListQuery = (
   baseQuery: ReturnType<typeof Product.find>,
@@ -537,7 +573,7 @@ const buildProductListQuery = (
     .filter(extraExcludeFields)
     .sort()
     .fields(
-      'userId productName hsCode categoryId priceRange productImages slug tags status isFeatured views rating totalReviews updatedAt',
+      'userId productName hsCode categoryId priceRange slug status updatedAt',
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 
@@ -594,7 +630,7 @@ function mapFlatPriceParamsToRangeFilter(
 }
 
 const getAllProductsFromDB = async (query: Record<string, unknown>) => {
-  const productQuery = buildProductListQuery(
+  const productQuery = buildPublicProductListQuery(
     Product.find(),
     mapFlatPriceParamsToRangeFilter(query),
   );
@@ -603,15 +639,11 @@ const getAllProductsFromDB = async (query: Record<string, unknown>) => {
   const products = await productQuery.modelQuery
     .populate({
       path: 'categoryId',
-      select: 'categoryName slug',
-    })
-    .populate({
-      path: 'productImages',
-      select: 'url -_id',
+      select: 'categoryName',
     })
     .lean();
 
-  const data = shapeProductListData(products as unknown[]);
+  const data = shapePublicProductCardData(products as unknown[]);
 
   return { data, meta };
 };
@@ -642,8 +674,7 @@ const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
     userId: oid,
     status: 'active',
   })
-    .select('_id productName priceRange productImages stock slug')
-    .populate('productImages', 'url')
+    .select('_id productName priceRange thumbnailImageUrl stock slug')
     .sort({ updatedAt: -1 })
     .limit(100)
     .lean();
@@ -651,17 +682,9 @@ const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
   const data: PublicSellerProductMinimalItem[] = (
     rows as unknown as Record<string, unknown>[]
   ).map((p) => {
-    const imgs = p.productImages as unknown[] | undefined;
-    let image: string | null = null;
-    if (Array.isArray(imgs) && imgs.length > 0) {
-      const first = imgs[0];
-      if (first && typeof first === 'object' && first !== null) {
-        const url = (first as { url?: string }).url;
-        if (typeof url === 'string' && url.length > 0) {
-          image = url;
-        }
-      }
-    }
+    const thumb = p.thumbnailImageUrl;
+    const image =
+      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
     const pr = p.priceRange;
     const priceRange =
       pr && typeof pr === 'object' && !Array.isArray(pr)
@@ -702,23 +725,14 @@ const getDashboardProductsFromDB = async (
   userId: string,
 ): Promise<DashboardProductCardItem[]> => {
   const rows = await Product.find({ userId: new Types.ObjectId(userId) })
-    .select('_id productName priceRange productImages slug viewsCount')
-    .populate('productImages', 'url')
+    .select('_id productName priceRange thumbnailImageUrl slug viewsCount')
     .sort({ updatedAt: -1 })
     .lean();
 
   return (rows as unknown as Record<string, unknown>[]).map((p) => {
-    const imgs = p.productImages as unknown[] | undefined;
-    let image: string | null = null;
-    if (Array.isArray(imgs) && imgs.length > 0) {
-      const first = imgs[0];
-      if (first && typeof first === 'object' && first !== null) {
-        const url = (first as { url?: string }).url;
-        if (typeof url === 'string' && url.length > 0) {
-          image = url;
-        }
-      }
-    }
+    const thumb = p.thumbnailImageUrl;
+    const image =
+      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
 
     const pr = p.priceRange;
     const priceRange =
@@ -769,16 +783,9 @@ const getMyProductsFromDB = async (
       path: 'categoryId',
       select: 'categoryName slug',
     })
-    .populate({
-      path: 'productImages',
-      select: 'url -_id',
-    })
     .lean();
 
-  const data = shapeProductListData(products as unknown[], {
-    omitCategoryId: true,
-    omitTags: true,
-  });
+  const data = shapeMyProductListData(products as unknown[]);
 
   return { data, meta };
 };
@@ -813,28 +820,15 @@ const searchProductsByTitleFromDB = async (
     status: 'active',
     productName: namePattern,
   })
-    .select('productName slug productImages')
-    .populate({
-      path: 'productImages',
-      select: 'url',
-      options: { perDocumentLimit: 1 },
-    })
+    .select('productName slug thumbnailImageUrl')
     .sort({ updatedAt: -1 })
     .limit(10)
     .lean();
 
   return (rows as unknown as Record<string, unknown>[]).map((p) => {
-    const imgs = p.productImages as unknown[] | undefined;
-    let thumbnailImageUrl: string | null = null;
-    if (Array.isArray(imgs) && imgs.length > 0) {
-      const first = imgs[0];
-      if (first && typeof first === 'object' && first !== null) {
-        const url = (first as { url?: string }).url;
-        if (typeof url === 'string' && url.length > 0) {
-          thumbnailImageUrl = url;
-        }
-      }
-    }
+    const thumb = p.thumbnailImageUrl;
+    const thumbnailImageUrl =
+      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
 
     return {
       thumbnailImageUrl,

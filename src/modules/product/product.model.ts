@@ -22,6 +22,7 @@ const productSchema = new Schema<IProduct>(
     productionLeadTime: { type: String, trim: true },
     supplyCapacity: { type: String, trim: true },
     productImages: [{ type: Schema.Types.ObjectId, ref: 'Image', required: true }],
+    thumbnailImageUrl: { type: String, trim: true },
     slug: { type: String, required: true, unique: true, trim: true },
     description: { type: String, trim: true },
     shortDescription: { type: String, trim: true },
