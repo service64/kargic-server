@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 import QueryBuilder from '../../builders/QueryBuilder';
 import { Product } from '../product/product.model';
 
-const buildProductListQuery = (
+const buildPublicProductListQuery = (
   baseQuery: ReturnType<typeof Product.find>,
   query: Record<string, unknown>,
 ) =>
@@ -11,7 +11,7 @@ const buildProductListQuery = (
     .filter()
     .sort()
     .fields(
-      'userId productName hsCode categoryId priceRange productImages slug tags status isFeatured views rating totalReviews updatedAt',
+      'userId productName categoryId priceRange thumbnailImageUrl slug status isFeatured updatedAt',
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 
@@ -60,43 +60,26 @@ function mapFlatPriceParamsToRangeFilter(
   return q;
 }
 
-const shapeProductListData = (products: unknown[]) => {
+const shapeSavedProductCardData = (products: unknown[]) => {
   return products.map((product) => {
     const raw = product as {
       _id?: Types.ObjectId;
       updatedAt?: Date;
     };
-    const id = raw._id ? String(raw._id) : '';
-
     const productObj = product as {
       userId?: Types.ObjectId;
       productName?: string;
-      hsCode?: string;
       categoryId?:
         | { _id?: Types.ObjectId; categoryName?: string }
         | Types.ObjectId;
       priceRange?: { min: number; max: number };
-      productImages?: Array<
-        { _id?: Types.ObjectId; url?: string } | Types.ObjectId | null
-      >;
+      thumbnailImageUrl?: string;
       slug?: string;
-      tags?: Array<string | Types.ObjectId | { _id?: Types.ObjectId }>;
       status?: 'draft' | 'active' | 'inactive';
       isFeatured?: boolean;
-      views?: number;
-      rating?: number;
-      totalReviews?: number;
     };
 
     const populatedCategory = productObj.categoryId;
-    const populatedImages = productObj.productImages;
-
-    const categoryId = populatedCategory
-      ? typeof populatedCategory === 'object' && '_id' in populatedCategory
-        ? String(populatedCategory._id)
-        : String(populatedCategory)
-      : '';
-
     const categoryName =
       populatedCategory &&
       typeof populatedCategory === 'object' &&
@@ -105,43 +88,20 @@ const shapeProductListData = (products: unknown[]) => {
         ? populatedCategory.categoryName
         : '';
 
-    const productImages = Array.isArray(populatedImages)
-      ? populatedImages
-          .map((image) => {
-            if (!image || typeof image !== 'object' || !('url' in image)) {
-              return null;
-            }
-            const url = (image as { url?: string }).url;
-            return typeof url === 'string' && url !== '' ? url : null;
-          })
-          .filter((u): u is string => u !== null)
-      : [];
-
-    const tagIds = Array.isArray(productObj.tags)
-      ? productObj.tags.map((t) => {
-          if (t && typeof t === 'object' && '_id' in t) {
-            return String((t as { _id?: Types.ObjectId })._id);
-          }
-          return String(t);
-        })
-      : [];
+    const thumb = productObj.thumbnailImageUrl;
+    const thumbnailImageUrl =
+      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
 
     return {
-      id,
+      id: raw._id ? String(raw._id) : '',
       sellerUserId: productObj.userId ? String(productObj.userId) : '',
-      productName: productObj.productName,
-      hsCode: productObj.hsCode,
-      categoryId,
+      productName: String(productObj.productName ?? ''),
       categoryName,
       priceRange: productObj.priceRange,
-      productImages,
-      slug: productObj.slug,
-      tags: tagIds,
+      thumbnailImageUrl,
+      slug: typeof productObj.slug === 'string' ? productObj.slug : '',
       status: productObj.status,
       isFeatured: productObj.isFeatured ?? false,
-      views: productObj.views ?? 0,
-      rating: productObj.rating ?? 0,
-      totalReviews: productObj.totalReviews ?? 0,
       updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString() : '',
     };
   });
@@ -152,7 +112,7 @@ export const fetchSavedProductsList = async (
   productIds: Types.ObjectId[],
   query: Record<string, unknown>,
 ) => {
-  const productQuery = buildProductListQuery(
+  const productQuery = buildPublicProductListQuery(
     Product.find({ _id: { $in: productIds } }),
     mapFlatPriceParamsToRangeFilter(query),
   );
@@ -161,15 +121,11 @@ export const fetchSavedProductsList = async (
   const products = await productQuery.modelQuery
     .populate({
       path: 'categoryId',
-      select: 'categoryName slug',
-    })
-    .populate({
-      path: 'productImages',
-      select: 'url -_id',
+      select: 'categoryName',
     })
     .lean();
 
-  const data = shapeProductListData(products as unknown[]);
+  const data = shapeSavedProductCardData(products as unknown[]);
 
   return { data, meta };
 };
