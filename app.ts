@@ -20,6 +20,7 @@ import { PredefinedMessageRoutes } from './src/modules/predefinedMessage/predefi
 import { ReportRoutes } from './src/modules/report/report.router';
 import { ContactRoutes } from './src/modules/contact/contact.router';
 import { ExportBlogRoutes } from './src/modules/exportBlog/exportBlog.router';
+import { SeoRoutes } from './src/modules/seo/seo.router';
 import cors from 'cors';
 import config from './src/config';
 
@@ -80,6 +81,7 @@ app.use('/api/v1/predefined-message', PredefinedMessageRoutes);
 app.use('/api/v1/report', ReportRoutes);
 app.use('/api/v1/contact', ContactRoutes);
 app.use('/api/v1/export-blog', ExportBlogRoutes);
+app.use('/api/v1/seo', SeoRoutes);
 // ------------------------------------------------------------
 // Media and User Storage Routes end here
 // ------------------------------------------------------------
