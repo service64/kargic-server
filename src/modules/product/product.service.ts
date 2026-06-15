@@ -26,6 +26,7 @@ type CreatePayload = {
   productionLeadTime?: string;
   supplyCapacity?: string;
   productImages: string[];
+  thumbnailImage?: string;
   description?: string;
   shortDescription?: string;
   specifications?: { key: string; value: string }[];
@@ -113,28 +114,22 @@ const assertImagesExist = async (imageIds: string[]) => {
   }
 };
 
-/** First image id → public URL; used to keep `thumbnailImageUrl` in sync. */
-const resolveThumbnailUrlFromImageIds = async (
-  imageIds: Array<string | Types.ObjectId>,
-): Promise<string | undefined> => {
-  const firstId = imageIds[0];
-  if (!firstId) return undefined;
+/** Thumbnail must be one of the product gallery ids; defaults to the first image. */
+const resolveThumbnailImageId = (
+  productImages: string[],
+  thumbnailImage?: string,
+): Types.ObjectId | undefined => {
+  if (productImages.length === 0) return undefined;
 
-  const doc = await Image.findById(firstId).select('url').lean();
-  const url = doc?.url;
-  return typeof url === 'string' && url.length > 0 ? url : undefined;
-};
-
-const syncProductThumbnail = async (product: {
-  productImages?: Types.ObjectId[];
-  thumbnailImageUrl?: string;
-}) => {
-  const ids = product.productImages ?? [];
-  if (ids.length === 0) {
-    product.thumbnailImageUrl = undefined;
-    return;
+  const pick = thumbnailImage?.trim() || productImages[0];
+  if (!productImages.includes(pick)) {
+    throw new AppError(
+      'Thumbnail must be one of the product images',
+      httpStatus.BAD_REQUEST,
+    );
   }
-  product.thumbnailImageUrl = await resolveThumbnailUrlFromImageIds(ids);
+
+  return new Types.ObjectId(pick);
 };
 
 const exporterExists = async (userId: string) => {
@@ -176,12 +171,18 @@ const createProductIntoDB = async (payload: CreatePayload) => {
     await assertImagesExist([payload.seo.image]);
   }
 
+  const imageIds = payload.productImages.map((id) => id.trim()).filter(Boolean);
+  if (payload.thumbnailImage) {
+    await assertImagesExist([payload.thumbnailImage]);
+  }
+
   const productData: IProduct = {
     userId: new Types.ObjectId(payload.userId),
     productName: payload.productName.trim(),
     hsCode: payload.hsCode.trim(),
     categoryId: new Types.ObjectId(payload.categoryId),
-    productImages: payload.productImages.map((id) => new Types.ObjectId(id)),
+    productImages: imageIds.map((id) => new Types.ObjectId(id)),
+    thumbnailImage: resolveThumbnailImageId(imageIds, payload.thumbnailImage),
     slug: await allocateUniqueProductSlug(
       makeSlug(payload.productName, payload.hsCode),
     ),
@@ -225,8 +226,6 @@ const createProductIntoDB = async (payload: CreatePayload) => {
     productData.seo = seoData;
   }
 
-  await syncProductThumbnail(productData);
-
   return Product.create(productData);
 };
 
@@ -245,6 +244,7 @@ const getProductByIdFromDB = async (id: string) => {
   const product = await Product.findById(id)
     .populate('categoryId', '_id categoryName slug')
     .populate('productImages', '_id url name alt')
+    .populate('thumbnailImage', '_id url name alt')
     .populate('seo.image', '_id url name alt')
     .lean();
 
@@ -260,6 +260,7 @@ const getProductBySlugFromDB = async (slug: string) => {
   const product = await Product.findOne({ slug: normalized })
     .populate('categoryId', '_id categoryName slug')
     .populate('productImages', '_id url name alt')
+    .populate('thumbnailImage', '_id url name alt')
     .populate('seo.image', '_id url name alt')
     .populate({
       path: 'tags',
@@ -303,6 +304,31 @@ const updateMyProductInDB = async (
     const ids = body.productImages as string[];
     await assertImagesExist(ids);
     product.productImages = ids.map((imgId) => new Types.ObjectId(imgId));
+
+    const currentThumb = product.thumbnailImage
+      ? String(product.thumbnailImage)
+      : '';
+    if (body.thumbnailImage === null) {
+      product.thumbnailImage = resolveThumbnailImageId(ids);
+    } else if (typeof body.thumbnailImage === 'string') {
+      await assertImagesExist([body.thumbnailImage]);
+      product.thumbnailImage = resolveThumbnailImageId(
+        ids,
+        body.thumbnailImage,
+      );
+    } else if (!currentThumb || !ids.includes(currentThumb)) {
+      product.thumbnailImage = resolveThumbnailImageId(ids);
+    }
+  } else if (typeof body.thumbnailImage === 'string') {
+    const ids = (product.productImages ?? []).map(String);
+    await assertImagesExist([body.thumbnailImage]);
+    product.thumbnailImage = resolveThumbnailImageId(
+      ids,
+      body.thumbnailImage,
+    );
+  } else if (body.thumbnailImage === null) {
+    const ids = (product.productImages ?? []).map(String);
+    product.thumbnailImage = resolveThumbnailImageId(ids);
   }
 
   if (body.productName !== undefined) {
@@ -397,8 +423,6 @@ const updateMyProductInDB = async (
   if (ownerBrandId) product.brand = ownerBrandId;
   else product.brand = undefined;
 
-  await syncProductThumbnail(product);
-
   await product.save();
 
   return getProductByIdFromDB(id);
@@ -423,6 +447,9 @@ const deleteMyProductFromDB = async (
   if (product.seo?.image) {
     relatedImageIds.add(String(product.seo.image));
   }
+  if (product.thumbnailImage) {
+    relatedImageIds.add(String(product.thumbnailImage));
+  }
 
   await Product.findByIdAndDelete(id);
 
@@ -432,7 +459,11 @@ const deleteMyProductFromDB = async (
   for (const imageId of relatedImageIds) {
     const imageObjectId = new Types.ObjectId(imageId);
     const stillUsedInProducts = await Product.exists({
-      $or: [{ productImages: imageObjectId }, { 'seo.image': imageObjectId }],
+      $or: [
+        { productImages: imageObjectId },
+        { 'seo.image': imageObjectId },
+        { thumbnailImage: imageObjectId },
+      ],
     });
 
     if (stillUsedInProducts) continue;
@@ -477,7 +508,7 @@ const shapePublicProductCardData = (
         | { _id?: Types.ObjectId; categoryName?: string }
         | Types.ObjectId;
       priceRange?: { min: number; max: number };
-      thumbnailImageUrl?: string;
+      thumbnailImage?: { url?: string } | Types.ObjectId | null;
       slug?: string;
       status?: 'draft' | 'active' | 'inactive';
       isFeatured?: boolean;
@@ -492,9 +523,16 @@ const shapePublicProductCardData = (
         ? populatedCategory.categoryName
         : '';
 
-    const thumb = productObj.thumbnailImageUrl;
+    const thumb = productObj.thumbnailImage;
     const thumbnailImageUrl =
-      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
+      thumb &&
+      typeof thumb === 'object' &&
+      thumb !== null &&
+      'url' in thumb &&
+      typeof thumb.url === 'string' &&
+      thumb.url.length > 0
+        ? thumb.url
+        : null;
 
     return {
       id: raw._id ? String(raw._id) : '',
@@ -559,7 +597,7 @@ const buildPublicProductListQuery = (
     .filter(extraExcludeFields)
     .sort()
     .fields(
-      'userId productName categoryId priceRange thumbnailImageUrl slug status isFeatured',
+      'userId productName categoryId priceRange thumbnailImage slug status isFeatured',
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 
@@ -641,6 +679,10 @@ const getAllProductsFromDB = async (query: Record<string, unknown>) => {
       path: 'categoryId',
       select: 'categoryName',
     })
+    .populate({
+      path: 'thumbnailImage',
+      select: 'url',
+    })
     .lean();
 
   const data = shapePublicProductCardData(products as unknown[]);
@@ -674,7 +716,8 @@ const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
     userId: oid,
     status: 'active',
   })
-    .select('_id productName priceRange thumbnailImageUrl stock slug')
+    .select('_id productName priceRange thumbnailImage stock slug')
+    .populate('thumbnailImage', 'url')
     .sort({ updatedAt: -1 })
     .limit(100)
     .lean();
@@ -682,9 +725,11 @@ const getPublicMinimalProductsBySellerUserIdFromDB = async (userId: string) => {
   const data: PublicSellerProductMinimalItem[] = (
     rows as unknown as Record<string, unknown>[]
   ).map((p) => {
-    const thumb = p.thumbnailImageUrl;
+    const thumb = p.thumbnailImage as { url?: string } | null | undefined;
     const image =
-      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
+      thumb && typeof thumb === 'object' && typeof thumb.url === 'string'
+        ? thumb.url
+        : null;
     const pr = p.priceRange;
     const priceRange =
       pr && typeof pr === 'object' && !Array.isArray(pr)
@@ -725,14 +770,17 @@ const getDashboardProductsFromDB = async (
   userId: string,
 ): Promise<DashboardProductCardItem[]> => {
   const rows = await Product.find({ userId: new Types.ObjectId(userId) })
-    .select('_id productName priceRange thumbnailImageUrl slug viewsCount')
+    .select('_id productName priceRange thumbnailImage slug viewsCount')
+    .populate('thumbnailImage', 'url')
     .sort({ updatedAt: -1 })
     .lean();
 
   return (rows as unknown as Record<string, unknown>[]).map((p) => {
-    const thumb = p.thumbnailImageUrl;
+    const thumb = p.thumbnailImage as { url?: string } | null | undefined;
     const image =
-      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
+      thumb && typeof thumb === 'object' && typeof thumb.url === 'string'
+        ? thumb.url
+        : null;
 
     const pr = p.priceRange;
     const priceRange =
@@ -820,15 +868,18 @@ const searchProductsByTitleFromDB = async (
     status: 'active',
     productName: namePattern,
   })
-    .select('productName slug thumbnailImageUrl')
+    .select('productName slug thumbnailImage')
+    .populate('thumbnailImage', 'url')
     .sort({ updatedAt: -1 })
     .limit(10)
     .lean();
 
   return (rows as unknown as Record<string, unknown>[]).map((p) => {
-    const thumb = p.thumbnailImageUrl;
+    const thumb = p.thumbnailImage as { url?: string } | null | undefined;
     const thumbnailImageUrl =
-      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
+      thumb && typeof thumb === 'object' && typeof thumb.url === 'string'
+        ? thumb.url
+        : null;
 
     return {
       thumbnailImageUrl,

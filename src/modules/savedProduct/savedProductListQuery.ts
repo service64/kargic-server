@@ -11,7 +11,7 @@ const buildPublicProductListQuery = (
     .filter()
     .sort()
     .fields(
-      'userId productName categoryId priceRange thumbnailImageUrl slug status isFeatured updatedAt',
+      'userId productName categoryId priceRange thumbnailImage slug status isFeatured updatedAt',
     )
     .paginate({ defaultLimit: 10, maxLimit: 100 });
 
@@ -73,7 +73,7 @@ const shapeSavedProductCardData = (products: unknown[]) => {
         | { _id?: Types.ObjectId; categoryName?: string }
         | Types.ObjectId;
       priceRange?: { min: number; max: number };
-      thumbnailImageUrl?: string;
+      thumbnailImage?: { url?: string } | Types.ObjectId | null;
       slug?: string;
       status?: 'draft' | 'active' | 'inactive';
       isFeatured?: boolean;
@@ -88,9 +88,16 @@ const shapeSavedProductCardData = (products: unknown[]) => {
         ? populatedCategory.categoryName
         : '';
 
-    const thumb = productObj.thumbnailImageUrl;
+    const thumb = productObj.thumbnailImage;
     const thumbnailImageUrl =
-      typeof thumb === 'string' && thumb.length > 0 ? thumb : null;
+      thumb &&
+      typeof thumb === 'object' &&
+      thumb !== null &&
+      'url' in thumb &&
+      typeof thumb.url === 'string' &&
+      thumb.url.length > 0
+        ? thumb.url
+        : null;
 
     return {
       id: raw._id ? String(raw._id) : '',
@@ -122,6 +129,10 @@ export const fetchSavedProductsList = async (
     .populate({
       path: 'categoryId',
       select: 'categoryName',
+    })
+    .populate({
+      path: 'thumbnailImage',
+      select: 'url',
     })
     .lean();
 
