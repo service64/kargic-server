@@ -4,11 +4,16 @@ import AppError from '../../../errors/AppError';
 import QueryBuilder from '../../../builders/QueryBuilder';
 import { ExporterProfile } from './exporterProfile.model';
 import { User } from '../user/user.model';
-import type { CompanyType, EmployeeCount } from '../../../type/common.type';
+import type {
+  CompanyType,
+  EmployeeCount,
+  ExporterCity,
+} from '../../../type/common.type';
 import { generateSlug } from '../../../utils/generateSlug';
 import { IExporterProfile } from './exporterProfile.interface';
 import { Product } from '../../product/product.model';
 import { Image } from '../../media/image.model';
+import { Category } from '../../category/category.model';
 import { populateCompanyVerificationImages } from './companyVerification.service';
 
 const MEDIA_REF_SELECT = 'url alt';
@@ -67,11 +72,79 @@ type CreatePayload = {
   yearEstablished: string;
   companyType: CompanyType;
   employeeCount: EmployeeCount;
+  category: string;
+  city: ExporterCity;
   mainProducts: string[];
   description?: string;
 };
 
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map(String).filter(Boolean);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const pickQueryValues = (
+  query: Record<string, unknown>,
+  key: string,
+): string[] => {
+  const direct = toStringArray(query[key]);
+  if (direct.length) return direct;
+  return toStringArray(query[`${key}[]`]);
+};
+
+const buildListFilter = (
+  query: Record<string, unknown>,
+): Record<string, unknown> => {
+  const conditions: Record<string, unknown>[] = [];
+
+  const companyTypes = pickQueryValues(query, 'companyType');
+  if (companyTypes.length) {
+    conditions.push({ companyType: { $in: companyTypes } });
+  }
+
+  const categories = pickQueryValues(query, 'category').filter((id) =>
+    Types.ObjectId.isValid(id),
+  );
+  if (categories.length) {
+    conditions.push({ category: { $in: categories.map(toObjectId) } });
+  }
+
+  const cities = pickQueryValues(query, 'city');
+  if (cities.length) {
+    const cityOr: Record<string, unknown>[] = [{ city: { $in: cities } }];
+    if (cities.includes('Dhaka')) {
+      cityOr.push({ city: { $exists: false } });
+    }
+    conditions.push(cityOr.length === 1 ? cityOr[0]! : { $or: cityOr });
+  }
+
+  if (conditions.length === 0) return {};
+  if (conditions.length === 1) return conditions[0]!;
+  return { $and: conditions };
+};
+
 const toObjectId = (id: string) => new Types.ObjectId(id);
+
+const assertCategoryExists = async (categoryId: string) => {
+  if (!Types.ObjectId.isValid(categoryId)) {
+    throw new AppError('Invalid category id', httpStatus.BAD_REQUEST);
+  }
+  const cat = await Category.findOne({
+    _id: categoryId,
+    isDeleted: false,
+  }).select('_id');
+  if (!cat) {
+    throw new AppError('Category not found', httpStatus.BAD_REQUEST);
+  }
+};
 
 const createExporterProfileIntoDB = async (payload: CreatePayload) => {
   const user = await User.findById(payload.userId);
@@ -81,6 +154,8 @@ const createExporterProfileIntoDB = async (payload: CreatePayload) => {
   }
 
   const slug = generateSlug(user.name, payload.companyName);
+
+  await assertCategoryExists(payload.category);
 
   // optional unique check (extra safety)
   const existingSlug = await ExporterProfile.findOne({ slug });
@@ -95,6 +170,8 @@ const createExporterProfileIntoDB = async (payload: CreatePayload) => {
     yearEstablished: payload.yearEstablished,
     companyType: payload.companyType,
     employeeCount: payload.employeeCount,
+    category: toObjectId(payload.category),
+    city: payload.city,
     mainProducts: payload.mainProducts,
   };
 
@@ -117,36 +194,43 @@ const createExporterProfileIntoDB = async (payload: CreatePayload) => {
   return ExporterProfile.create(exporterData);
 };
 
-const buildExporterProfileListQuery = (
-  baseQuery: ReturnType<typeof ExporterProfile.find>,
-  query: Record<string, unknown>,
-) =>
-  new QueryBuilder(baseQuery, query)
-    .search(['companyName', 'slug', 'description', 'mainProducts'])
-    .filter()
+const buildExporterProfileListQuery = (query: Record<string, unknown>) => {
+  const listFilter = buildListFilter(query);
+  const baseQuery = ExporterProfile.find(
+    Object.keys(listFilter).length > 0 ? listFilter : {},
+  );
+
+  return new QueryBuilder(baseQuery, query)
+    .search(['companyName'])
     .sort('-createdAt')
     .fields(
-      '_id companyName slug companyType mainProducts description createdAt userId logoUrl banner0 banner1 banner2',
+      '_id companyName slug companyType category city mainProducts userId logoUrl banner0 banner1 banner2',
     )
     .paginate({ defaultLimit: 20, maxLimit: 100 });
+};
 
-/** Public list DTO — only fields the storefront exporters directory consumes. */
+/** Public list DTO — card fields only. */
 export type ExporterProfilePublicListItem = {
-  _id: string;
-  /** Owner `User` id — use for public profile URL `/exporters/:userId`. */
   ownerUserId: string;
   companyName: string;
   slug: string;
   companyType: string;
-  mainProducts: string[];
-  description?: string;
-  createdAt?: string;
+  category: { _id: string; categoryName: string; slug: string } | null;
+  city: string;
+  productsCount: number;
   logoUrl: { url: string } | null;
   banner0: { url: string } | null;
-  banner1: { url: string } | null;
-  banner2: { url: string } | null;
-  userId: { email?: string; phone?: string };
 };
+
+function resolveListBanner(
+  doc: Record<string, unknown>,
+): { url: string } | null {
+  return (
+    trimPopulatedImage(doc.banner0) ??
+    trimPopulatedImage(doc.banner1) ??
+    trimPopulatedImage(doc.banner2)
+  );
+}
 
 function trimPopulatedImage(img: unknown): { url: string } | null {
   if (img == null || typeof img !== 'object') return null;
@@ -154,54 +238,54 @@ function trimPopulatedImage(img: unknown): { url: string } | null {
   return typeof u === 'string' && u.length > 0 ? { url: u } : null;
 }
 
+function trimPopulatedCategory(
+  cat: unknown,
+): { _id: string; categoryName: string; slug: string } | null {
+  if (cat == null || typeof cat !== 'object' || Array.isArray(cat)) return null;
+  const o = cat as Record<string, unknown>;
+  const id = o._id != null ? String(o._id) : '';
+  const categoryName =
+    typeof o.categoryName === 'string' ? o.categoryName : '';
+  const slug = typeof o.slug === 'string' ? o.slug : '';
+  if (!id || !categoryName) return null;
+  return { _id: id, categoryName, slug };
+}
+
 function toPublicExporterListRow(
   doc: Record<string, unknown>,
 ): ExporterProfilePublicListItem {
   const uid = doc.userId;
-  let user: { email?: string; phone?: string } = {};
   let ownerUserId = '';
   if (uid && typeof uid === 'object' && !Array.isArray(uid)) {
     const o = uid as Record<string, unknown>;
     if (o._id != null) ownerUserId = String(o._id);
-    if (typeof o.email === 'string') user = { ...user, email: o.email };
-    if (typeof o.phone === 'string') user = { ...user, phone: o.phone };
   } else if (uid != null) {
     ownerUserId = String(uid);
   }
 
-  const createdAt = doc.createdAt;
-  const createdStr =
-    createdAt instanceof Date
-      ? createdAt.toISOString()
-      : typeof createdAt === 'string'
-        ? createdAt
-        : undefined;
+  const mainProducts = Array.isArray(doc.mainProducts)
+    ? (doc.mainProducts as unknown[]).map((x) => String(x))
+    : [];
 
   return {
-    _id: String(doc._id),
     ownerUserId,
     companyName: String(doc.companyName ?? ''),
     slug: String(doc.slug ?? ''),
     companyType: String(doc.companyType ?? ''),
-    mainProducts: Array.isArray(doc.mainProducts)
-      ? (doc.mainProducts as unknown[]).map((x) => String(x))
-      : [],
-    description:
-      typeof doc.description === 'string' ? doc.description : undefined,
-    createdAt: createdStr,
+    category: trimPopulatedCategory(doc.category),
+    city: String(doc.city ?? ''),
+    productsCount: mainProducts.length,
     logoUrl: trimPopulatedImage(doc.logoUrl),
-    banner0: trimPopulatedImage(doc.banner0),
-    banner1: trimPopulatedImage(doc.banner1),
-    banner2: trimPopulatedImage(doc.banner2),
-    userId: user,
+    banner0: resolveListBanner(doc),
   };
 }
 
 const getAllExporterProfilesFromDB = async (query: Record<string, unknown>) => {
-  const listQuery = buildExporterProfileListQuery(ExporterProfile.find(), query);
+  const listQuery = buildExporterProfileListQuery(query);
   const meta = await listQuery.countTotal();
   const raw = await listQuery.modelQuery
-    .populate('userId', 'email phone')
+    .populate('userId', '_id')
+    .populate('category', 'categoryName slug')
     .populate('logoUrl', 'url')
     .populate('banner0', 'url')
     .populate('banner1', 'url')
@@ -300,6 +384,7 @@ const getPublicExporterDetailByUserIdFromDB = async (userId: string) => {
 
   const doc = await ExporterProfile.findOne({ userId: oid })
     .populate('userId', 'name email phone activeRole roles isVerified status age')
+    .populate('category', 'categoryName slug')
     .populate('logoUrl', 'url alt')
     .populate('banner0', 'url alt _id')
     .populate('banner1', 'url alt _id')
@@ -366,6 +451,7 @@ const getExporterProfileByIdFromDB = async (userId: string) => {
     userId: new Types.ObjectId(userId),
   })
     .populate('userId', 'email phone role name age')
+    .populate('category', 'categoryName slug')
     .populate('logoUrl', 'url alt')
     .populate('banner0', 'url alt _id')
     .populate('banner1', 'url alt _id')
@@ -457,6 +543,13 @@ const updateExporterProfileInDB = async (
   }
   if (typeof body.employeeCount === 'string') {
     $set.employeeCount = body.employeeCount;
+  }
+  if (typeof body.category === 'string') {
+    await assertCategoryExists(body.category);
+    $set.category = toObjectId(body.category);
+  }
+  if (typeof body.city === 'string') {
+    $set.city = body.city;
   }
   if (Array.isArray(body.mainProducts)) {
     $set.mainProducts = body.mainProducts;

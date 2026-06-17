@@ -851,9 +851,10 @@ export type ProductSearchSuggestionItem = {
   thumbnailImageUrl: string | null;
   title: string;
   slug: string;
+  hsCode?: string;
 };
 
-/** Fast title autocomplete — active products only, top 10, minimal fields. */
+/** Fast autocomplete — active products only, top 10, title or HS code match. */
 const searchProductsByTitleFromDB = async (
   query: string,
 ): Promise<ProductSearchSuggestionItem[]> => {
@@ -862,13 +863,13 @@ const searchProductsByTitleFromDB = async (
     return [];
   }
 
-  const namePattern = new RegExp(escapeRegexChars(trimmed), 'i');
+  const pattern = new RegExp(escapeRegexChars(trimmed), 'i');
 
   const rows = await Product.find({
     status: 'active',
-    productName: namePattern,
+    $or: [{ productName: pattern }, { hsCode: pattern }],
   })
-    .select('productName slug thumbnailImage')
+    .select('productName slug thumbnailImage hsCode')
     .populate('thumbnailImage', 'url')
     .sort({ updatedAt: -1 })
     .limit(10)
@@ -881,10 +882,16 @@ const searchProductsByTitleFromDB = async (
         ? thumb.url
         : null;
 
+    const hsCode =
+      typeof p.hsCode === 'string' && p.hsCode.trim()
+        ? p.hsCode.trim()
+        : undefined;
+
     return {
       thumbnailImageUrl,
       title: String(p.productName ?? ''),
       slug: typeof p.slug === 'string' ? p.slug : '',
+      hsCode,
     };
   });
 };
