@@ -1,5 +1,9 @@
 import { Types } from 'mongoose';
-import type { CompanyType, EmployeeCount } from '../../../type/common.type';
+import type {
+  CompanyType,
+  EmployeeCount,
+  ExporterCity,
+} from '../../../type/common.type';
 
 export type { CompanyType, EmployeeCount };
 
@@ -70,6 +74,8 @@ export interface IExporterProfile {
   identificationNumber?: string;
   companyType: CompanyType;
   employeeCount: EmployeeCount;
+  category: Types.ObjectId;
+  city: ExporterCity;
 
   mainProducts: string[];
 

@@ -71,7 +71,7 @@ export const productSellerUserIdParamZodSchema = z.object({
   query: z.any().optional(),
 });
 
-/** Hero / autocomplete: `GET /search?q=...` — min 3 chars, title match, top 10. */
+/** Hero / autocomplete: `GET /search?q=...` — min 3 chars, title or HS code match, top 10. */
 export const productSearchQueryZodSchema = z.object({
   query: z.object({
     q: z

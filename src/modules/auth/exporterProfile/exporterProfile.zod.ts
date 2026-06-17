@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { COMPANY_TYPES, EMPLOYEE_COUNTS } from "../../../type/common.type";
+import {
+  COMPANY_TYPES,
+  EMPLOYEE_COUNTS,
+  EXPORTER_CITIES,
+} from "../../../type/common.type";
 
 const objectIdString = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid id");
 
@@ -9,6 +13,10 @@ const companyTypeEnum = z.enum(
 
 const employeeCountEnum = z.enum(
   EMPLOYEE_COUNTS as unknown as [string, ...string[]],
+);
+
+const exporterCityEnum = z.enum(
+  EXPORTER_CITIES as unknown as [string, ...string[]],
 );
 
 const slugSchema = z
@@ -27,6 +35,8 @@ export const createExporterProfileZodSchema = z.object({
     yearEstablished: z.string().min(4),
     companyType: companyTypeEnum,
     employeeCount: employeeCountEnum,
+    category: objectIdString,
+    city: exporterCityEnum,
     mainProducts: mainProductsSchema,
     description: z.string().optional(),
   }),
@@ -67,6 +77,8 @@ export const updateExporterProfileZodSchema = z.object({
       yearEstablished: z.string().min(4).optional(),
       companyType: companyTypeEnum.optional(),
       employeeCount: employeeCountEnum.optional(),
+      category: objectIdString.optional(),
+      city: exporterCityEnum.optional(),
       mainProducts: mainProductsSchema.optional(),
       description: z.string().optional().nullable(),
     })

@@ -12,6 +12,17 @@ export const EMPLOYEE_COUNTS = ['1_10', '11_50', '51_200', '201_500', '501_PLUS'
 
 export type EmployeeCount = (typeof EMPLOYEE_COUNTS)[number];
 
+/** Exporter city / location — used on public directory filters. */
+export const EXPORTER_CITIES = [
+  'Dhaka',
+  'Chittagong',
+  'Sylhet',
+  'Khulna',
+  'Rajshahi',
+] as const;
+
+export type ExporterCity = (typeof EXPORTER_CITIES)[number];
+
 export const PACKAGE_TYPES = ['FREE', 'BASIC', 'VERIFIED', 'FEATURED'] as const;
 
 export type PackageType = (typeof PACKAGE_TYPES)[number];
