@@ -1,5 +1,9 @@
 import { Schema, model } from 'mongoose';
-import { COMPANY_TYPES, EMPLOYEE_COUNTS } from '../../../type/common.type';
+import {
+  COMPANY_TYPES,
+  EMPLOYEE_COUNTS,
+  EXPORTER_CITIES,
+} from '../../../type/common.type';
 import type { IExporterProfile } from './exporterProfile.interface';
 
 const verifyFlag = {
@@ -126,6 +130,17 @@ const exporterProfileSchema = new Schema<IExporterProfile>(
       type: String,
       enum: EMPLOYEE_COUNTS,
       required: true,
+    },
+    category: {
+      type: Schema.Types.ObjectId,
+      ref: 'Category',
+      required: true,
+    },
+    city: {
+      type: String,
+      enum: EXPORTER_CITIES,
+      required: true,
+      default: 'Dhaka',
     },
     mainProducts: {
       type: [String],
