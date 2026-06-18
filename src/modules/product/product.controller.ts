@@ -34,6 +34,17 @@ const getProductBySlug = catchAsync(async (req: Request, res: Response) => {
   return sendResponse(res, httpStatus.OK, 'Product retrieved successfully', result);
 });
 
+const getProductSeoBySlug = catchAsync(async (req: Request, res: Response) => {
+  const { slug } = req.params as { slug: string };
+  const result = await ProductService.getProductSeoBySlugFromDB(slug);
+  return sendResponse(
+    res,
+    httpStatus.OK,
+    'Product SEO metadata retrieved successfully',
+    result,
+  );
+});
+
 const getPublicMinimalProductsBySellerUserId = catchAsync(
   async (req: Request, res: Response) => {
     const { userId } = req.params as { userId: string };
@@ -96,6 +107,7 @@ export const ProductController = {
   getAllProducts,
   getMyProducts,
   getProductBySlug,
+  getProductSeoBySlug,
   getPublicMinimalProductsBySellerUserId,
   getDashboardProducts,
   searchProducts,

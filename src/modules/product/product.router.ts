@@ -47,6 +47,12 @@ router.get(
   validateRequest(productSearchQueryZodSchema),
   ProductController.searchProducts,
 );
+/** Public SEO metadata for product detail — populated `seo.image`. */
+router.get(
+  '/seo/:slug',
+  validateRequest(productSlugParamZodSchema),
+  ProductController.getProductSeoBySlug,
+);
 router.get(
   '/:slug',
   validateRequest(productSlugParamZodSchema),
