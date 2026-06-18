@@ -255,6 +255,79 @@ const getProductByIdFromDB = async (id: string) => {
   return product;
 };
 
+export type ProductSeoDetail = {
+  slug: string;
+  title: string;
+  description: string;
+  keywords: string[];
+  image: {
+    _id: string;
+    url: string;
+    name?: string;
+    alt?: string;
+  } | null;
+};
+
+const shapeProductSeoImage = (
+  raw: unknown,
+): ProductSeoDetail['image'] => {
+  if (!raw || typeof raw !== 'object' || !('_id' in raw)) return null;
+  const img = raw as {
+    _id: Types.ObjectId | string;
+    url?: string;
+    name?: string;
+    alt?: string;
+  };
+  const url = typeof img.url === 'string' ? img.url : '';
+  if (!url) return null;
+  return {
+    _id: String(img._id),
+    url,
+    name: typeof img.name === 'string' ? img.name : undefined,
+    alt: typeof img.alt === 'string' ? img.alt : undefined,
+  };
+};
+
+/** Public SEO payload for product detail pages — `seo.image` populated with url. */
+const getProductSeoBySlugFromDB = async (slug: string): Promise<ProductSeoDetail> => {
+  const normalized = slug.trim().toLowerCase();
+  const product = await Product.findOne({ slug: normalized })
+    .select('slug productName shortDescription seo thumbnailImage')
+    .populate('seo.image', '_id url name alt')
+    .populate('thumbnailImage', '_id url name alt')
+    .lean();
+
+  if (!product) {
+    throw new AppError('Product not found', httpStatus.NOT_FOUND);
+  }
+
+  const seo = product.seo as Record<string, unknown> | undefined;
+  const seoImage = shapeProductSeoImage(seo?.image);
+  const fallbackImage = shapeProductSeoImage(product.thumbnailImage);
+
+  const title =
+    (typeof seo?.title === 'string' && seo.title.trim()) ||
+    String(product.productName ?? '');
+
+  const description =
+    (typeof seo?.description === 'string' && seo.description.trim()) ||
+    (typeof product.shortDescription === 'string' &&
+    product.shortDescription.trim()) ||
+    '';
+
+  const keywords = Array.isArray(seo?.keywords)
+    ? seo.keywords.filter((k): k is string => typeof k === 'string')
+    : [];
+
+  return {
+    slug: typeof product.slug === 'string' ? product.slug : normalized,
+    title,
+    description,
+    keywords,
+    image: seoImage ?? fallbackImage,
+  };
+};
+
 const getProductBySlugFromDB = async (slug: string) => {
   const normalized = slug.trim().toLowerCase();
   const product = await Product.findOne({ slug: normalized })
@@ -903,6 +976,7 @@ export const ProductService = {
   getPublicMinimalProductsBySellerUserIdFromDB,
   getDashboardProductsFromDB,
   getProductByIdFromDB,
+  getProductSeoBySlugFromDB,
   getProductBySlugFromDB,
   updateMyProductInDB,
   deleteMyProductFromDB,
