@@ -1,5 +1,6 @@
 import httpStatus from 'http-status';
 import AppError from '../../errors/AppError';
+import { Product } from '../product/product.model';
 import type {
   SitemapDetail,
   SitemapListItem,
@@ -10,6 +11,11 @@ import {
   normalizeSitemapPath,
   toPublicSitemapPath,
 } from './sitemap.utils';
+
+const PRODUCT_SITEMAP_PATH_PREFIX = 'products/';
+const PRODUCT_SITEMAP_CHANGE_FREQUENCY: SitemapPublicItem['changeFrequency'] =
+  'weekly';
+const PRODUCT_SITEMAP_PRIORITY = 0.7;
 
 type CreateSitemapPayload = {
   url: string;
@@ -50,19 +56,60 @@ const shapeDetail = (row: Record<string, unknown>): SitemapDetail => ({
   createdAt: toIso(row.createdAt),
 });
 
+const mapStaticSitemapRow = (
+  row: Record<string, unknown>,
+): SitemapPublicItem => ({
+  url: toPublicSitemapPath(String(row.url ?? '')),
+  changeFrequency: row.changeFrequency as SitemapPublicItem['changeFrequency'],
+  priority: Number(row.priority ?? 0.5),
+  lastModified: toIso(row.lastModified) ?? new Date().toISOString(),
+});
+
+/** Active products — auto-included in public sitemap (`products/:slug`). */
+const getActiveProductSitemapItemsFromDB =
+  async (): Promise<SitemapPublicItem[]> => {
+    const rows = await Product.find({ status: 'active' })
+      .select('slug updatedAt -_id')
+      .sort({ slug: 1 })
+      .lean();
+
+    return rows
+      .filter((row) => typeof row.slug === 'string' && row.slug.trim())
+      .map((row) => {
+        const updatedAt = (row as { updatedAt?: Date }).updatedAt;
+        return {
+          url: `${PRODUCT_SITEMAP_PATH_PREFIX}${row.slug}`,
+          changeFrequency: PRODUCT_SITEMAP_CHANGE_FREQUENCY,
+          priority: PRODUCT_SITEMAP_PRIORITY,
+          lastModified: toIso(updatedAt) ?? new Date().toISOString(),
+        };
+      });
+  };
+
 /** Public sitemap feed — enabled rows only, minimal fields, indexed query. */
 const getPublicSitemapFromDB = async (): Promise<SitemapPublicItem[]> => {
-  const rows = await SitemapEntry.find({ enabled: true })
-    .select('url changeFrequency priority lastModified -_id')
-    .sort({ url: 1 })
-    .lean();
+  const [staticRows, productRows] = await Promise.all([
+    SitemapEntry.find({ enabled: true })
+      .select('url changeFrequency priority lastModified -_id')
+      .sort({ url: 1 })
+      .lean(),
+    getActiveProductSitemapItemsFromDB(),
+  ]);
 
-  return rows.map((row) => ({
-    url: toPublicSitemapPath(String(row.url ?? '')),
-    changeFrequency: row.changeFrequency as SitemapPublicItem['changeFrequency'],
-    priority: Number(row.priority ?? 0.5),
-    lastModified: toIso(row.lastModified) ?? new Date().toISOString(),
-  }));
+  const staticItems = staticRows.map((row) =>
+    mapStaticSitemapRow(row as unknown as Record<string, unknown>),
+  );
+
+  const seen = new Set(staticItems.map((item) => item.url));
+  const merged = [...staticItems];
+
+  for (const item of productRows) {
+    if (seen.has(item.url)) continue;
+    merged.push(item);
+    seen.add(item.url);
+  }
+
+  return merged.sort((a, b) => a.url.localeCompare(b.url));
 };
 
 /** Admin list — all rows. */
